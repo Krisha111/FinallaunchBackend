@@ -21,17 +21,37 @@ import MongoStore from 'connect-mongo';
 import { fileURLToPath } from 'url';
 import User from './model/User.js'; // ✅ adjust path if necessary
 
+// ✅ LOAD ENVIRONMENT VARIABLES FIRST
+dotenv.config();
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 
-// MongoDB setup
-dotenv.config();
-mongoose.connect('mongodb://localhost:27017/ReelChatt')
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// ✅ MONGODB ATLAS CONNECTION
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ReelChatt';
 
-app.use(cors({ origin: 'http://localhost:8081', credentials: true }));
+mongoose.connect(MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+  .then(() => {
+    console.log('✅ MongoDB connected successfully');
+    console.log(`📍 Connected to: ${MONGODB_URI.includes('mongodb+srv') ? 'MongoDB Atlas (Cloud)' : 'Local MongoDB'}`);
+  })
+  .catch(err => {
+    console.error('❌ MongoDB connection error:', err);
+    process.exit(1); // Exit if DB connection fails
+  });
+
+// ✅ CORS Configuration with environment variable
+const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:8081';
+
+app.use(cors({ 
+  origin: CLIENT_URL, 
+  credentials: true 
+}));
+
 const server = http.createServer(app);
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -39,7 +59,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Socket
 const io = new Server(server, {
   cors: {
-    origin: 'http://localhost:8081',  // React
+    origin: CLIENT_URL,  // React Native
     methods: ['GET', 'POST', 'PATCH'],
     credentials: true,
   }
@@ -56,14 +76,18 @@ app.use((req, res, next) => {
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));// <--- Make sure this is included
 
-// ✅ Add session
+// ✅ SESSION with MongoDB Atlas
 app.use(session({
-  secret: 'your_super_secret_key6373764@#^**^FKJN',
+  secret: process.env.SESSION_SECRET || 'your_super_secret_key6373764@#^**^FKJN',
   resave: false,
-  saveUninitialized: true,
-  cookie: { secure: false },  // Set `secure: true` in production if using HTTPS
+  saveUninitialized: false, // Changed to false for production
+  cookie: { 
+    secure: process.env.NODE_ENV === 'production', // true in production with HTTPS
+    maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+  },
   store: MongoStore.create({
-    mongoUrl: 'mongodb://localhost:27017/ReelChatt',
+    mongoUrl: MONGODB_URI, // ✅ Use same connection string
+    touchAfter: 24 * 3600 // lazy session update (24 hours)
   }),
 }));
 
@@ -95,6 +119,15 @@ app.get('/auth/login/success', (req, res) => {
   } else {
     res.status(403).json({ message: "Not Authorized" });
   }
+});
+
+// ✅ Health check endpoint (useful for deployment monitoring)
+app.get('/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'OK', 
+    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // ========== SOCKET.IO ==========
@@ -236,7 +269,21 @@ io.on('connection', (socket) => {
   });
 });
 
+// ✅ Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    mongoose.connection.close(false, () => {
+      console.log('MongoDB connection closed');
+      process.exit(0);
+    });
+  });
+});
+
 // Server
-server.listen(8000, () =>
-  console.log(`Server running on http://localhost:8000`)
-);
+const PORT = process.env.PORT || 8000;
+server.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
