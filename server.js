@@ -7,19 +7,15 @@ import signUpRouteUser from './routes/Authentication/SignUp.js';
 import signInRouteUser from './routes/Authentication/signIn.js';
 import dotenv from 'dotenv';
 import cookieSession from 'cookie-session';
-// import passport from 'passport';
-// import './serverr/passport.js'
 import path from 'path';
 import profileInformationRoutes from "./routes/Profile/ProfileInformationRoute.js";
-
-import verifyToken from './MiddleWare/verifyToken.js'; // ✅ add this at the top
-import reelRoutes from './routes/NewDrop/Reel.js'
-
+import verifyToken from './MiddleWare/verifyToken.js';
+import reelRoutes from './routes/NewDrop/Reel.js';
 import session from 'express-session';
-import profileStatsRoutes from './routes/Profile/profileStatsRoute.js'
+import profileStatsRoutes from './routes/Profile/profileStatsRoute.js';
 import MongoStore from 'connect-mongo';
 import { fileURLToPath } from 'url';
-import User from './model/User.js'; // ✅ adjust path if necessary
+import User from './model/User.js';
 
 // ✅ LOAD ENVIRONMENT VARIABLES FIRST
 dotenv.config();
@@ -28,7 +24,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 
-// ✅ MONGODB ATLAS CONNECTION
+// ✅ MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ReelChatt';
 
 mongoose.connect(MONGODB_URI, {
@@ -41,75 +37,91 @@ mongoose.connect(MONGODB_URI, {
   })
   .catch(err => {
     console.error('❌ MongoDB connection error:', err);
-    process.exit(1); // Exit if DB connection fails
+    process.exit(1);
   });
 
-// ✅ CORS Configuration with environment variable
+// ✅ CORS FIX (this is the most important part)
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:8081';
 
-app.use(cors({ 
-  origin: CLIENT_URL, 
-  credentials: true 
+app.use(cors({
+  origin: [
+    CLIENT_URL,                    // local
+    'http://localhost:19006',      // Expo web/dev
+    'http://localhost:3000',       // common frontend dev port
+    'https://finallaunchfrontend.onrender.com' // replace with your frontend domain when deployed
+  ],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  credentials: true,
 }));
 
-const server = http.createServer(app);
+// ✅ Handle preflight requests (OPTIONS)
+app.options('*', cors());
+
+// ✅ Body parsers
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Socket
+// ✅ Create HTTP + Socket.IO server
+const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: CLIENT_URL,  // React Native
+    origin: [
+      CLIENT_URL,
+      'http://localhost:19006',
+      'http://localhost:3000',
+      'https://finallaunchfrontend.onrender.com'
+    ],
     methods: ['GET', 'POST', 'PATCH'],
     credentials: true,
   }
 });
 
+// ✅ Share IO globally
 const onlineUsers = {};
-app.set('io', io);                  // <-- make io available to controllers
+app.set('io', io);
 app.set('onlineUsers', onlineUsers);
 
+// ✅ Attach IO to every request
 app.use((req, res, next) => {
-  req.io = io;  // ✅ attach io after it's created
+  req.io = io;
   next();
 });
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));// <--- Make sure this is included
+// ✅ Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ✅ SESSION with MongoDB Atlas
+// ✅ Session (with MongoDB)
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your_super_secret_key6373764@#^**^FKJN',
   resave: false,
-  saveUninitialized: false, // Changed to false for production
-  cookie: { 
-    secure: process.env.NODE_ENV === 'production', // true in production with HTTPS
-    maxAge: 1000 * 60 * 60 * 24 * 7 // 7 days
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production', // only secure in prod
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
   },
   store: MongoStore.create({
-    mongoUrl: MONGODB_URI, // ✅ Use same connection string
-    touchAfter: 24 * 3600 // lazy session update (24 hours)
+    mongoUrl: MONGODB_URI,
+    touchAfter: 24 * 3600
   }),
 }));
 
-// app.use(passport.initialize());
-// app.use(passport.session());
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads'))); // Serve images
-
-// Routes
+// ✅ ROUTES
 app.use('/api/profile', profileStatsRoutes);
 app.use('/auth', signUpRouteUser);
 app.use('/', signInRouteUser);
 app.use('/api/reels', reelRoutes);
-app.use("/api/profileInformation", profileInformationRoutes);
+app.use('/api/profileInformation', profileInformationRoutes);
 
+// ✅ Auth check
 app.get('/auth/me', verifyToken, (req, res) => {
-  const userId = req.user.id; // Extracted from JWT in verifyToken middleware
-  User.findById(userId).then(user => {
-    res.json({ user });
-  }).catch(err => res.status(500).json({ message: 'User not found' }));
+  const userId = req.user.id;
+  User.findById(userId)
+    .then(user => res.json({ user }))
+    .catch(() => res.status(500).json({ message: 'User not found' }));
 });
 
-// Google Authentication
+// ✅ Google Auth success endpoint
 app.get('/auth/login/success', (req, res) => {
   if (req.user) {
     res.status(200).json({
@@ -121,29 +133,29 @@ app.get('/auth/login/success', (req, res) => {
   }
 });
 
-// ✅ Health check endpoint (useful for deployment monitoring)
+// ✅ Health Check
 app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'OK', 
+  res.status(200).json({
+    status: 'OK',
     mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
-// ========== SOCKET.IO ==========
+// ✅ SOCKET.IO HANDLERS
 let userssample = {};
 let rooms = {};
-let admins = {}; // { roomName: adminUsername }
+let admins = {};
 
 io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
+  console.log('🟢 New client connected:', socket.id);
 
-  // noti
+  // online tracking
   socket.on('user-connected', (userId) => {
     onlineUsers[userId] = socket.id;
   });
 
-  // Register user
+  // register user
   socket.on('register', async ({ username, userId }) => {
     if (!username) return;
     socket.username = username;
@@ -158,7 +170,6 @@ io.on('connection', (socket) => {
       console.error('Error fetching user profile:', err.message);
     }
 
-    // store full object including bio
     userssample[username] = {
       socketId: socket.id,
       username,
@@ -170,7 +181,7 @@ io.on('connection', (socket) => {
     io.emit('active_users', Object.values(userssample));
   });
 
-  // send notification
+  // notifications
   socket.on('send-notification', (data) => {
     const { receiverId } = data;
     const receiverSocket = onlineUsers[receiverId];
@@ -204,21 +215,18 @@ io.on('connection', (socket) => {
     const fromUser = userssample[from];
     if (fromUser && fromUser.socketId) {
       io.sockets.sockets.get(fromUser.socketId)?.join(room);
-
-      // ✅ tell inviter that invite was accepted (only once!)
       io.to(fromUser.socketId).emit('invite_accepted', {
-        by: socket.username,   // accepter
-        from: fromUser.username, // inviter
+        by: socket.username,
+        from: fromUser.username,
         room,
-        isAdmin: true          // inviter is admin
+        isAdmin: true
       });
     }
 
-    admins[room] = from; // ✅ assign admin
+    admins[room] = from;
     rooms[socket.username] = room;
     rooms[from] = room;
 
-    // ✅ tell accepter that they joined (non-admin)
     io.to(socket.id).emit('joined_room', { room, isAdmin: false });
   });
 
@@ -238,7 +246,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ✅ FIXED: play/pause sync (echo to all, not just others)
+  // play/pause sync
   socket.on('reel_play', ({ room, index, isPlaying }) => {
     console.log("📡 Server relaying play state:", room, index, isPlaying);
     io.to(room).emit('reel_play_state', { index, isPlaying });
@@ -250,7 +258,6 @@ io.on('connection', (socket) => {
       delete userssample[socket.username];
     }
 
-    // remove from onlineUsers
     for (const [uid, sid] of Object.entries(onlineUsers)) {
       if (sid === socket.id) delete onlineUsers[uid];
     }
@@ -264,7 +271,6 @@ io.on('connection', (socket) => {
       io.to(room).emit('admin_left');
     }
 
-    // ✅ Always send array of objects (with bio, image, etc.)
     io.emit('active_users', Object.values(userssample));
   });
 });
@@ -281,7 +287,7 @@ process.on('SIGTERM', () => {
   });
 });
 
-// Server
+// ✅ Server Start
 const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
