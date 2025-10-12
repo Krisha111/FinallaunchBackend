@@ -1,3 +1,7 @@
+// ================================
+// 📁 server.js (Final Fixed + Stable Version)
+// ================================
+
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -6,7 +10,6 @@ import mongoose from 'mongoose';
 import signUpRouteUser from './routes/Authentication/SignUp.js';
 import signInRouteUser from './routes/Authentication/signIn.js';
 import dotenv from 'dotenv';
-import cookieSession from 'cookie-session';
 import path from 'path';
 import profileInformationRoutes from "./routes/Profile/ProfileInformationRoute.js";
 import verifyToken from './MiddleWare/verifyToken.js';
@@ -17,14 +20,20 @@ import MongoStore from 'connect-mongo';
 import { fileURLToPath } from 'url';
 import User from './model/User.js';
 
-// ✅ LOAD ENVIRONMENT VARIABLES FIRST
+// ✅ Load environment variables
 dotenv.config();
 
+// ================================
+// ✅ Directory Setup (for ES Modules)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// ================================
 const app = express();
 
+// ================================
 // ✅ MongoDB Connection
+// ================================
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ReelChatt';
 
 mongoose.connect(MONGODB_URI, {
@@ -40,80 +49,109 @@ mongoose.connect(MONGODB_URI, {
     process.exit(1);
   });
 
-// ✅ CORS FIX (this is the most important part)
-const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:8081';
+// ================================
+// ✅ CORS Configuration (Render + Local)
+// ================================
+const allowedOrigins = [
+  'http://localhost:8081', // React Native Metro
+  'http://localhost:19006', // Expo web
+  'http://localhost:3000',  // React web
+  'https://finallaunchfrontend.onrender.com', // Frontend on Render
+];
 
-app.use(cors({
-  origin: [
-    CLIENT_URL,                    // local
-    'http://localhost:19006',      // Expo web/dev
-    'http://localhost:3000',       // common frontend dev port
-    'https://finallaunchfrontend.onrender.com' // replace with your frontend domain when deployed
-  ],
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn('⚠️ CORS Blocked Origin:', origin);
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  })
+);
 
-// ✅ Handle preflight requests (OPTIONS)
-app.options('*', cors());
-
-// ✅ Body parsers
+// ================================
+// ✅ Body Parsers
+// ================================
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// ✅ Create HTTP + Socket.IO server
+// ================================
+// ✅ HTTP + Socket.IO Server Setup
+// ================================
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [
-      CLIENT_URL,
-      'http://localhost:19006',
-      'http://localhost:3000',
-      'https://finallaunchfrontend.onrender.com'
-    ],
+    origin: allowedOrigins,
     methods: ['GET', 'POST', 'PATCH'],
     credentials: true,
-  }
+  },
 });
 
-// ✅ Share IO globally
+// ================================
+// ✅ Global Socket.IO Objects
+// ================================
 const onlineUsers = {};
 app.set('io', io);
 app.set('onlineUsers', onlineUsers);
 
-// ✅ Attach IO to every request
 app.use((req, res, next) => {
   req.io = io;
   next();
 });
 
-// ✅ Serve uploaded files
+// ================================
+// ✅ Serve Static & Upload Files
+// ================================
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ✅ Session (with MongoDB)
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'your_super_secret_key6373764@#^**^FKJN',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    secure: process.env.NODE_ENV === 'production', // only secure in prod
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-  },
-  store: MongoStore.create({
-    mongoUrl: MONGODB_URI,
-    touchAfter: 24 * 3600
-  }),
-}));
+// ================================
+// ✅ Session Setup
+// ================================
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || 'your_super_secret_key6373764@#^**^FKJN',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    },
+    store: MongoStore.create({
+      mongoUrl: MONGODB_URI,
+      touchAfter: 24 * 3600,
+    }),
+  })
+);
 
+// ================================
 // ✅ ROUTES
+// ================================
 app.use('/api/profile', profileStatsRoutes);
 app.use('/auth', signUpRouteUser);
 app.use('/', signInRouteUser);
 app.use('/api/reels', reelRoutes);
 app.use('/api/profileInformation', profileInformationRoutes);
 
-// ✅ Auth check
+// ✅ FIXED: Correct route for user by ID
+app.get('/api/user/:id', async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ================================
+// ✅ Auth Check
+// ================================
 app.get('/auth/me', verifyToken, (req, res) => {
   const userId = req.user.id;
   User.findById(userId)
@@ -121,7 +159,9 @@ app.get('/auth/me', verifyToken, (req, res) => {
     .catch(() => res.status(500).json({ message: 'User not found' }));
 });
 
-// ✅ Google Auth success endpoint
+// ================================
+// ✅ Google Auth Success
+// ================================
 app.get('/auth/login/success', (req, res) => {
   if (req.user) {
     res.status(200).json({
@@ -133,7 +173,9 @@ app.get('/auth/login/success', (req, res) => {
   }
 });
 
+// ================================
 // ✅ Health Check
+// ================================
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
@@ -142,7 +184,9 @@ app.get('/health', (req, res) => {
   });
 });
 
+// ================================
 // ✅ SOCKET.IO HANDLERS
+// ================================
 let userssample = {};
 let rooms = {};
 let admins = {};
@@ -150,12 +194,10 @@ let admins = {};
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
 
-  // online tracking
   socket.on('user-connected', (userId) => {
     onlineUsers[userId] = socket.id;
   });
 
-  // register user
   socket.on('register', async ({ username, userId }) => {
     if (!username) return;
     socket.username = username;
@@ -181,7 +223,6 @@ io.on('connection', (socket) => {
     io.emit('active_users', Object.values(userssample));
   });
 
-  // notifications
   socket.on('send-notification', (data) => {
     const { receiverId } = data;
     const receiverSocket = onlineUsers[receiverId];
@@ -190,12 +231,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  // reel change
   socket.on('change_reel', ({ room, reelUrl }) => {
     io.to(room).emit('reel_updated', { reelUrl });
   });
 
-  // send invite
   socket.on('send_invite', ({ to }) => {
     const receiver = userssample[to];
     if (receiver && receiver.socketId) {
@@ -206,10 +245,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  // accept invite
   socket.on('accept_invite', ({ from }) => {
     const room = `${from}-${socket.username}`;
-    console.log("fromfromyyyyy", from);
     socket.join(room);
 
     const fromUser = userssample[from];
@@ -230,12 +267,10 @@ io.on('connection', (socket) => {
     io.to(socket.id).emit('joined_room', { room, isAdmin: false });
   });
 
-  // send message
   socket.on('send_message', ({ room, message, sender }) => {
     io.to(room).emit('receive_message', { sender, message });
   });
 
-  // only admin can change reel index
   socket.on('change_reel_index', ({ room, index }) => {
     const admin = admins[room];
     if (socket.username === admin) {
@@ -246,13 +281,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  // play/pause sync
   socket.on('reel_play', ({ room, index, isPlaying }) => {
-    console.log("📡 Server relaying play state:", room, index, isPlaying);
     io.to(room).emit('reel_play_state', { index, isPlaying });
   });
 
-  // disconnect
   socket.on('disconnect', () => {
     if (socket.username && userssample[socket.username]) {
       delete userssample[socket.username];
@@ -275,7 +307,22 @@ io.on('connection', (socket) => {
   });
 });
 
-// ✅ Graceful shutdown
+// ================================
+// ✅ Serve Frontend (for Render Deployment)
+// ================================
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, 'client', 'build');
+  app.use(express.static(frontendPath));
+
+  // ✅ FIXED: Express 5 uses '*' not '/*'
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
+
+// ================================
+// ✅ Graceful Shutdown
+// ================================
 process.on('SIGTERM', () => {
   console.log('SIGTERM signal received: closing HTTP server');
   server.close(() => {
@@ -287,9 +334,11 @@ process.on('SIGTERM', () => {
   });
 });
 
-// ✅ Server Start
+// ================================
+// ✅ Start Server (Render-compatible)
+// ================================
 const PORT = process.env.PORT || 8000;
-server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
