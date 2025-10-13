@@ -21,11 +21,9 @@ import { fileURLToPath } from 'url';
 import User from './model/User.js';
 
 // ================================
-// ✅ Load environment variables only in development
+// ✅ Load environment variables
 // ================================
-if (process.env.NODE_ENV !== 'production') {
-  dotenv.config();
-}
+dotenv.config();
 
 // ================================
 // ✅ Directory Setup (for ES Modules)
@@ -40,10 +38,8 @@ const app = express();
 // ================================
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ReelChatt';
 
-mongoose.connect(MONGODB_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-})
+mongoose
+  .connect(MONGODB_URI, { useNewUrlParser: true })
   .then(() => {
     console.log('✅ MongoDB connected successfully');
     console.log(`📍 Connected to: ${MONGODB_URI.includes('mongodb+srv') ? 'MongoDB Atlas (Cloud)' : 'Local MongoDB'}`);
@@ -307,8 +303,8 @@ if (process.env.NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, 'client', 'build');
   app.use(express.static(frontendPath));
 
-  // ✅ FIXED: Express 5 uses '*' not '/*'
-  app.get('*', (req, res) => {
+  // ✅ FIXED: Express 5 requires '/*' instead of '*'
+  app.get('/*', (req, res) => {
     res.sendFile(path.join(frontendPath, 'index.html'));
   });
 }
