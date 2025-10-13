@@ -299,15 +299,20 @@ io.on('connection', (socket) => {
 // ================================
 // ✅ Serve Frontend (for Render Deployment)
 // ================================
-if (process.env.NODE_ENV === 'production') {
-  const frontendPath = path.join(__dirname, 'client', 'build');
-  app.use(express.static(frontendPath));
+// if (process.env.NODE_ENV === 'production') {
+//   const frontendPath = path.join(__dirname, 'client', 'build');
+//   app.use(express.static(frontendPath));
 
-  // ✅ Express 5-compatible wildcard route
-  app.use((req, res, next) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  });
-}
+//   // ✅ Express 5-compatible wildcard route
+//   app.use((req, res, next) => {
+//     res.sendFile(path.join(frontendPath, 'index.html'));
+//   });
+// }
+// ✅ Skip frontend serving — backend API only
+app.get('/', (req, res) => {
+  res.send('ReelChatt backend is running successfully 🎉');
+});
+
 
 
 // ================================
