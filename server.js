@@ -303,11 +303,12 @@ if (process.env.NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, 'client', 'build');
   app.use(express.static(frontendPath));
 
-  // ✅ FIXED: Express 5 requires '/*' instead of '*'
-  app.get('*', (req, res) => {
+  // ✅ Express 5-compatible wildcard route
+  app.use((req, res, next) => {
     res.sendFile(path.join(frontendPath, 'index.html'));
   });
 }
+
 
 // ================================
 // ✅ Graceful Shutdown (Fixed Mongoose Warning)
