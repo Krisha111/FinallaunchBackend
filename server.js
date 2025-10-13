@@ -1,5 +1,5 @@
 // ================================
-// 📁 server.js (Final Fixed + Stable Version)
+// 📁 server.js (Final Fixed + Stable Version for Render + Local)
 // ================================
 
 import express from 'express';
@@ -20,8 +20,12 @@ import MongoStore from 'connect-mongo';
 import { fileURLToPath } from 'url';
 import User from './model/User.js';
 
-// ✅ Load environment variables
-dotenv.config();
+// ================================
+// ✅ Load environment variables only in development
+// ================================
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
 
 // ================================
 // ✅ Directory Setup (for ES Modules)
@@ -137,17 +141,6 @@ app.use('/auth', signUpRouteUser);
 app.use('/', signInRouteUser);
 app.use('/api/reels', reelRoutes);
 app.use('/api/profileInformation', profileInformationRoutes);
-
-// ✅ FIXED: Correct route for user by ID
-// app.get('/api/user/:id', async (req, res) => {
-//   try {
-//     const user = await User.findById(req.params.id);
-//     if (!user) return res.status(404).json({ message: 'User not found' });
-//     res.status(200).json(user);
-//   } catch (error) {
-//     res.status(500).json({ message: error.message });
-//   }
-// });
 
 // ================================
 // ✅ Auth Check
@@ -321,16 +314,15 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // ================================
-// ✅ Graceful Shutdown
+// ✅ Graceful Shutdown (Fixed Mongoose Warning)
 // ================================
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM signal received: closing HTTP server');
-  server.close(() => {
+  server.close(async () => {
     console.log('HTTP server closed');
-    mongoose.connection.close(false, () => {
-      console.log('MongoDB connection closed');
-      process.exit(0);
-    });
+    await mongoose.connection.close();
+    console.log('MongoDB connection closed');
+    process.exit(0);
   });
 });
 
