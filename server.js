@@ -1,5 +1,5 @@
 // ================================
-// 📁 server.js (Final Fixed + Stable Version for Render + Local)
+// 📁 server.js (Fixed Reel Sync)
 // ================================
 
 import express from 'express';
@@ -11,7 +11,7 @@ import signUpRouteUser from './routes/Authentication/SignUp.js';
 import signInRouteUser from './routes/Authentication/signIn.js';
 import dotenv from 'dotenv';
 import path from 'path';
-import profileInformationRoutes from "./routes/Profile/ProfileInformationRoute.js";
+import profileInformationRoutes from './routes/Profile/ProfileInformationRoute.js';
 import verifyToken from './MiddleWare/verifyToken.js';
 import reelRoutes from './routes/NewDrop/Reel.js';
 import session from 'express-session';
@@ -36,33 +36,68 @@ const app = express();
 // ================================
 // ✅ MongoDB Connection
 // ================================
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ReelChatt';
+const MONGODB_URI = 'mongodb://localhost:27017/ReelChatt';
 
 mongoose
   .connect(MONGODB_URI, { useNewUrlParser: true })
   .then(() => {
     console.log('✅ MongoDB connected successfully');
-    console.log(`📍 Connected to: ${MONGODB_URI.includes('mongodb+srv') ? 'MongoDB Atlas (Cloud)' : 'Local MongoDB'}`);
+    console.log(
+      `📍 Connected to: ${
+        MONGODB_URI.includes('mongodb+srv')
+          ? 'MongoDB Atlas (Cloud)'
+          : 'Local MongoDB'
+      }`
+    );
   })
-  .catch(err => {
+  .catch((err) => {
     console.error('❌ MongoDB connection error:', err);
     process.exit(1);
   });
 
 // ================================
-// ✅ CORS Configuration (Render + Local)
+// ✅ Upload Limits
 // ================================
+const MAX_UPLOAD_BYTES =
+  Number(process.env.MAX_UPLOAD_BYTES) || 200 * 1024 * 1024;
+
+// ================================
+// ✅ CORS Configuration
+// ================================
+const isProduction = process.env.NODE_ENV === 'production';
+
+// const allowedOrigins = [
+//   'http://localhost:8081',
+//   'http://localhost:19006',
+//   'http://localhost:3000',
+//   'http://10.0.2.2:8081',
+//   'http://192.168.2.16:8081',
+//   'exp://192.168.2.16:8081',
+//   'https://finallaunchfrontend.onrender.com',
+// ];
+
 const allowedOrigins = [
-  'http://localhost:8081', // React Native Metro
-  'http://localhost:19006', // Expo web
-  'http://localhost:3000',  // React web
-  'https://finallaunchfrontend.onrender.com', // Frontend on Render
+  
+  'http://192.168.2.16:8080',
+ 
+  
 ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (!origin) {
+        console.log('✅ Request with no origin header (likely mobile app) - ALLOWED');
+        return callback(null, true);
+      }
+
+      if (!isProduction) {
+        console.log(`✅ Development mode - Origin allowed: ${origin}`);
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin)) {
+        console.log(`✅ Production - Whitelisted origin: ${origin}`);
         callback(null, true);
       } else {
         console.warn('⚠️ CORS Blocked Origin:', origin);
@@ -78,20 +113,50 @@ app.use(
 // ================================
 // ✅ Body Parsers
 // ================================
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '200mb' }));
+app.use(express.urlencoded({ limit: '200mb', extended: true }));
 
 // ================================
-// ✅ HTTP + Socket.IO Server Setup
+// ✅ Early Content-Length Check
+// ================================
+app.use((req, res, next) => {
+  try {
+    const contentLength = req.headers['content-length'];
+    if (contentLength && Number(contentLength) > MAX_UPLOAD_BYTES) {
+      console.warn(
+        `📛 Request rejected: ${contentLength} > ${MAX_UPLOAD_BYTES}`
+      );
+      return res
+        .status(413)
+        .json({ message: 'File too large. Increase MAX_UPLOAD_BYTES.' });
+    }
+  } catch (err) {
+    console.warn('Could not parse content-length header:', err?.message || err);
+  }
+  next();
+});
+
+// ================================
+// ✅ HTTP + Socket.IO Server
 // ================================
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (!isProduction) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     methods: ['GET', 'POST', 'PATCH'],
     credentials: true,
   },
 });
+
+server.timeout = 10 * 60 * 1000;
 
 // ================================
 // ✅ Global Socket.IO Objects
@@ -106,7 +171,7 @@ app.use((req, res, next) => {
 });
 
 // ================================
-// ✅ Serve Static & Upload Files
+// ✅ Static Files
 // ================================
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -115,12 +180,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // ================================
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'your_super_secret_key6373764@#^**^FKJN',
+    secret:
+      process.env.SESSION_SECRET ||
+      'your_super_secret_key6373764@#^**^FKJN',
     resave: false,
     saveUninitialized: false,
     cookie: {
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+      maxAge: 1000 * 60 * 60 * 24 * 7,
     },
     store: MongoStore.create({
       mongoUrl: MONGODB_URI,
@@ -139,46 +206,34 @@ app.use('/api/reels', reelRoutes);
 app.use('/api/profileInformation', profileInformationRoutes);
 
 // ================================
-// ✅ Auth Check
+// ✅ Auth Check Route
 // ================================
 app.get('/auth/me', verifyToken, (req, res) => {
   const userId = req.user.id;
   User.findById(userId)
-    .then(user => res.json({ user }))
+    .then((user) => res.json({ user }))
     .catch(() => res.status(500).json({ message: 'User not found' }));
 });
 
 // ================================
-// ✅ Google Auth Success
-// ================================
-app.get('/auth/login/success', (req, res) => {
-  if (req.user) {
-    res.status(200).json({
-      message: "User Authenticated",
-      user: req.user,
-    });
-  } else {
-    res.status(403).json({ message: "Not Authorized" });
-  }
-});
-
-// ================================
-// ✅ Health Check
+// ✅ Health Check Route
 // ================================
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
-    mongodb: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    mongodb:
+      mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
     timestamp: new Date().toISOString(),
   });
 });
 
 // ================================
-// ✅ SOCKET.IO HANDLERS
+// ✅ SOCKET.IO HANDLERS (FIXED REEL SYNC)
 // ================================
 let userssample = {};
 let rooms = {};
 let admins = {};
+let roomStates = {}; // Track current reel index per room
 
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
@@ -187,7 +242,7 @@ io.on('connection', (socket) => {
     onlineUsers[userId] = socket.id;
   });
 
-  socket.on('register', async ({ username, userId }) => {
+  socket.on('register', async ({ username }) => {
     if (!username) return;
     socket.username = username;
 
@@ -212,12 +267,14 @@ io.on('connection', (socket) => {
     io.emit('active_users', Object.values(userssample));
   });
 
+  socket.on("receive_invite", ({ from }) => {
+    socket.emit("accept_invite", { from });
+  });
+
   socket.on('send-notification', (data) => {
     const { receiverId } = data;
     const receiverSocket = onlineUsers[receiverId];
-    if (receiverSocket) {
-      io.to(receiverSocket).emit('new_notification', data);
-    }
+    if (receiverSocket) io.to(receiverSocket).emit('new_notification', data);
   });
 
   socket.on('change_reel', ({ room, reelUrl }) => {
@@ -226,113 +283,209 @@ io.on('connection', (socket) => {
 
   socket.on('send_invite', ({ to }) => {
     const receiver = userssample[to];
-    if (receiver && receiver.socketId) {
+    if (receiver?.socketId) {
       io.to(receiver.socketId).emit('receive_invite', { from: socket.username });
       console.log(`📨 Invite sent from ${socket.username} to ${to}`);
     } else {
-      console.log(`❌ Could not send invite: ${to} not found or not connected`);
+      console.log(`❌ Invite failed: ${to} not connected`);
     }
   });
 
   socket.on('accept_invite', ({ from }) => {
     const room = `${from}-${socket.username}`;
     socket.join(room);
-
+    
     const fromUser = userssample[from];
-    if (fromUser && fromUser.socketId) {
-      io.sockets.sockets.get(fromUser.socketId)?.join(room);
-      io.to(fromUser.socketId).emit('invite_accepted', {
-        by: socket.username,
-        from: fromUser.username,
-        room,
-        isAdmin: true
-      });
+    if (fromUser?.socketId) {
+      const fromSocket = io.sockets.sockets.get(fromUser.socketId);
+      if (fromSocket) {
+        fromSocket.join(room);
+        
+        // Initialize room state with admin's current position (default 0)
+        roomStates[room] = { currentIndex: 0, isPlaying: true };
+        
+        // Set admin
+        admins[room] = from;
+        rooms[socket.username] = room;
+        rooms[from] = room;
+        
+        console.log(`✅ Room created: ${room} | Admin: ${from}`);
+        
+        // Notify admin that invite was accepted (admin gets isAdmin: true)
+        io.to(fromUser.socketId).emit('invite_accepted', {
+          by: socket.username,
+          from: fromUser.username,
+          room,
+          isAdmin: true,
+          currentReelIndex: 0,
+        });
+        
+        // Notify non-admin that they joined (gets isAdmin: false and current index)
+        io.to(socket.id).emit('joined_room', { 
+          room, 
+          isAdmin: false,
+          currentReelIndex: 0,
+        });
+      }
     }
-
-    admins[room] = from;
-    rooms[socket.username] = room;
-    rooms[from] = room;
-
-    io.to(socket.id).emit('joined_room', { room, isAdmin: false });
   });
 
   socket.on('send_message', ({ room, message, sender }) => {
+    console.log(`💬 Message in ${room} from ${sender}: ${message.substring(0, 50)}`);
     io.to(room).emit('receive_message', { sender, message });
   });
 
+  // ✅ FIXED: Sync reel index from admin
+  socket.on("sync_reel_index", ({ room, index }) => {
+    const admin = admins[room];
+    
+    // Only allow admin to sync index
+    if (socket.username === admin) {
+      // Update room state
+      if (roomStates[room]) {
+        roomStates[room].currentIndex = index;
+      } else {
+        roomStates[room] = { currentIndex: index, isPlaying: true };
+      }
+      
+      console.log(`🔄 Admin ${socket.username} synced reel index to ${index} in room ${room}`);
+      
+      // Broadcast to all OTHER users in room (not back to admin)
+      socket.to(room).emit('sync_reel_index', { index });
+    } else {
+      console.warn(`⚠️ Non-admin ${socket.username} tried to sync index in room ${room}`);
+    }
+  });
+
+  // ✅ FIXED: Sync play state from admin
+  socket.on('reel_play', ({ room, index, isPlaying }) => {
+    const admin = admins[room];
+    
+    // Only allow admin to control playback
+    if (socket.username === admin) {
+      // Update room state
+      if (roomStates[room]) {
+        roomStates[room].currentIndex = index;
+        roomStates[room].isPlaying = isPlaying;
+      } else {
+        roomStates[room] = { currentIndex: index, isPlaying };
+      }
+      
+      console.log(`▶️ Admin ${socket.username} set play state: index=${index}, isPlaying=${isPlaying} in room ${room}`);
+      
+      // Broadcast to all OTHER users in room
+      socket.to(room).emit('reel_play_state', { index, isPlaying });
+    } else {
+      console.warn(`⚠️ Non-admin ${socket.username} tried to control playback in room ${room}`);
+    }
+  });
+
+  // Legacy support (if needed)
   socket.on('change_reel_index', ({ room, index }) => {
     const admin = admins[room];
     if (socket.username === admin) {
-      io.to(room).emit('sync_reel_index', index);
-      console.log(`✅ ${socket.username} (admin) changed reel to index ${index} in room ${room}`);
-    } else {
-      console.log(`❌ ${socket.username} tried to change reel but is not admin of room ${room}`);
+      if (roomStates[room]) {
+        roomStates[room].currentIndex = index;
+      }
+      socket.to(room).emit('sync_reel_index', { index });
+      console.log(`✅ ${socket.username} changed reel to index ${index} in room ${room} (legacy)`);
     }
   });
+socket.on("admin_left_room", ({ room, adminName }) => {
+  // Notify all users in the room (non-admins) to leave with admin name
+  io.to(room).emit("admin_left", { adminName });
 
-  socket.on('reel_play', ({ room, index, isPlaying }) => {
-    io.to(room).emit('reel_play_state', { index, isPlaying });
-  });
+  // Admin leaves the room
+  socket.leave(room);
+
+  // Clean up server state
+  delete admins[room];
+  delete roomStates[room];
+
+  // Remove room mapping for all users
+  for (const [user, userRoom] of Object.entries(rooms)) {
+    if (userRoom === room) {
+      delete rooms[user];
+    }
+  }
+
+  console.log(`👋 Admin ${adminName} left room ${room}, all users removed`);
+});
+
+
 
   socket.on('disconnect', () => {
-    if (socket.username && userssample[socket.username]) {
+    console.log(`🔴 Client disconnected: ${socket.id} (${socket.username || 'Unknown'})`);
+    
+    if (socket.username) {
       delete userssample[socket.username];
     }
-
+    
+    // Remove from onlineUsers
     for (const [uid, sid] of Object.entries(onlineUsers)) {
-      if (sid === socket.id) delete onlineUsers[uid];
+      if (sid === socket.id) {
+        delete onlineUsers[uid];
+      }
     }
-
+    
+    // Handle room cleanup
     const room = rooms[socket.username];
     const wasAdmin = admins[room] === socket.username;
-
-    delete rooms[socket.username];
-    if (wasAdmin) {
-      delete admins[room];
-      io.to(room).emit('admin_left');
+    
+    if (room) {
+      delete rooms[socket.username];
+      
+      if (wasAdmin) {
+        console.log(`👋 Admin ${socket.username} left room ${room}`);
+        delete admins[room];
+        delete roomStates[room];
+        
+        // Notify other users in room that admin left
+        io.to(room).emit('admin_left');
+        
+        // Clean up other user's room reference
+        for (const [user, userRoom] of Object.entries(rooms)) {
+          if (userRoom === room) {
+            delete rooms[user];
+          }
+        }
+      } else {
+        console.log(`👋 User ${socket.username} left room ${room}`);
+      }
     }
-
+    
+    // Broadcast updated user list
     io.emit('active_users', Object.values(userssample));
   });
 });
 
 // ================================
-// ✅ Serve Frontend (for Render Deployment)
+// ✅ Root Test Route
 // ================================
-// if (process.env.NODE_ENV === 'production') {
-//   const frontendPath = path.join(__dirname, 'client', 'build');
-//   app.use(express.static(frontendPath));
-
-//   // ✅ Express 5-compatible wildcard route
-//   app.use((req, res, next) => {
-//     res.sendFile(path.join(frontendPath, 'index.html'));
-//   });
-// }
-// ✅ Skip frontend serving — backend API only
 app.get('/', (req, res) => {
-  res.send('ReelChatt backend is running successfully 🎉');
+  res.send('✅ ReelChatt backend running locally on http://localhost:8000');
 });
 
-
-
 // ================================
-// ✅ Graceful Shutdown (Fixed Mongoose Warning)
+// ✅ Graceful Shutdown
 // ================================
 process.on('SIGTERM', async () => {
-  console.log('SIGTERM signal received: closing HTTP server');
+  console.log('SIGTERM: closing HTTP server');
   server.close(async () => {
     console.log('HTTP server closed');
     await mongoose.connection.close();
-    console.log('MongoDB connection closed');
+    console.log('MongoDB closed');
     process.exit(0);
   });
 });
 
 // ================================
-// ✅ Start Server (Render-compatible)
+// ✅ Start Server
 // ================================
-const PORT = process.env.PORT || 8000;
+const PORT = 8000;
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🚀 KrishaServer running locally at http://localhost:${PORT}`);
+  console.log(`🌐 Network accessible at http://192.168.2.16:${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔓 CORS: ${isProduction ? 'Production (Whitelist)' : 'Development (Allow All)'}`);
 });

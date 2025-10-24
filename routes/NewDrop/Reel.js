@@ -1,5 +1,9 @@
+// ================================
+// 📁 backend/routes/NewDrop/Reel.js (FINAL FIXED VERSION)
+// ================================
+
 import express from 'express';
-import upload from '../../MiddleWare/Upload.js'; // multer setup
+import multer from 'multer'; // ✅ multer import
 import {
   createReelPost,
   getAllReelPosts,
@@ -10,31 +14,56 @@ import {
   likeReel,
   getAllReels,
   commentOnReel,
-  getReelsByUserId
+  getReelsByUserId,
 } from '../../controller/NewDrop/Reel.js';
 import { protect } from '../../MiddleWare/authMiddleware.js';
 
 const router = express.Router();
 
+// ================================
+// ✅ Multer setup: Temporary folder for uploads
+// ================================
+const upload = multer({ dest: 'uploads/' }); // store files temporarily
+
+// ================================
+// Routes
+// ================================
+
 /**
- * @route   POST /api/reels/newReelDrop
- * @desc    Create a new reel
- * @access  Private
+ * @route   GET /api/reels/user/:userId
+ * @desc    Get reels by specific user
+ * @access  Public
  */
 router.get('/user/:userId', getReelsByUserId);
-router.get("/all", getAllReels);
+
+/**
+ * @route   GET /api/reels/all
+ * @desc    Get all reels (public)
+ * @access  Public
+ */
+router.get('/all', getAllReels);
+
+/**
+ * @route   POST /api/reels/newReelDrop
+ * @desc    Create a new reel with both video/image and poster
+ * @access  Private
+ */
 router.post(
-  "/newReelDrop",
+  '/newReelDrop',
   protect,
   upload.fields([
-    { name: "poster", maxCount: 1 },     // cover image
-    { name: "reelFiles", maxCount: 10 }  // reel images/videos
+    { name: 'poster', maxCount: 1 }, // cover image
+    { name: 'reelFiles', maxCount: 10 }, // multiple video/image files
   ]),
-  createReelPost
+  createReelPost // ✅ now req.body and req.files are populated
 );
 
-
-router.get('/getNewReelDrop',protect, getAllReelPosts);
+/**
+ * @route   GET /api/reels/getNewReelDrop
+ * @desc    Get all reels (authenticated)
+ * @access  Private
+ */
+router.get('/getNewReelDrop', protect, getAllReelPosts);
 
 /**
  * @route   GET /api/reels/mine
@@ -58,12 +87,17 @@ router.post('/save/:reelId', protect, saveReel);
 router.get('/saved', protect, getSavedReels);
 
 /**
- * @route   POST /api/reels/comment/:reelId
- * @desc    Add a comment to a reel
- * @access  Public (or use protect if needed)
+ * @route   POST /api/reels/:reelId/like
+ * @desc    Like a reel
+ * @access  Private
  */
-router.post('/:reelId/like', protect,likeReel);
+router.post('/:reelId/like', protect, likeReel);
 
-// router.post('/:reelId/comment', addCommentToReel);
-router.post('/:reelId/comment', protect,addCommentToReel);
+/**
+ * @route   POST /api/reels/:reelId/comment
+ * @desc    Add a comment to a reel
+ * @access  Private
+ */
+router.post('/:reelId/comment', protect, addCommentToReel);
+
 export default router;

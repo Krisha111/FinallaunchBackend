@@ -8,7 +8,7 @@ dotenv.config();
 import mongoose from 'mongoose';
 
 // Use environment variable if provided (recommended for production), otherwise fall back to localhost for dev
-const BASE_URL = process.env.BASE_URL || 'http://localhost:8000';
+const BASE_URL =  "http://192.168.2.16:8000";
 
 /**
  * @desc   Get reels by user ID
@@ -88,6 +88,15 @@ export const getAllReels = async (req, res) => {
 };
 
 export const createReelPost = async (req, res) => {
+  //  console.log("req.body:", req.body); // text fields
+  // console.log("req.files:", req.files); // uploaded files
+
+  const { reelScript, reelLocation } = req.body;
+  const reelFile = req.files.reelFiles ? req.files.reelFiles[0] : null;
+  const posterFile = req.files.poster ? req.files.poster[0] : null;
+   if (!reelFile || !posterFile) {
+    return res.status(400).json({ message: "Missing video or poster file" });
+  }
   try {
     const {
       reelScript,

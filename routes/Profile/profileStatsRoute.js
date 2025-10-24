@@ -3,6 +3,6 @@ import { getProfileStats } from '../../controller/Profile/profileStatsController
 import {protect} from '../../MiddleWare/authMiddleware.js'
 const router = express.Router();
 
-router.get('/stats', protect, getProfileStats);
+router.get('/stats/:id', protect, getProfileStats);
 
 export default router;
