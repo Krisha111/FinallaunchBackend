@@ -118,7 +118,7 @@ export const getProfileById = async (req, res) => {
     const user = await User.findById(id)
       .select("-password -__v")
       .populate("reels"); // optional
-
+// console.log(user)
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const userObject = user.toObject();
