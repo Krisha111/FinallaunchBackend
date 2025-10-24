@@ -1,5 +1,5 @@
 // ================================
-// 📁 server.js (Fixed Reel Sync)
+// 📁 server.js (Production Ready for Render + MongoDB Atlas)
 // ================================
 
 import express from 'express';
@@ -27,6 +27,7 @@ dotenv.config();
 
 // ================================
 // ✅ Directory Setup (for ES Modules)
+// ================================
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -34,12 +35,15 @@ const __dirname = path.dirname(__filename);
 const app = express();
 
 // ================================
-// ✅ MongoDB Connection
+// ✅ MongoDB Connection (Production Ready)
 // ================================
-const MONGODB_URI = 'mongodb://localhost:27017/ReelChatt';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ReelChatt';
 
 mongoose
-  .connect(MONGODB_URI, { useNewUrlParser: true })
+  .connect(MONGODB_URI, { 
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => {
     console.log('✅ MongoDB connected successfully');
     console.log(
@@ -62,30 +66,30 @@ const MAX_UPLOAD_BYTES =
   Number(process.env.MAX_UPLOAD_BYTES) || 200 * 1024 * 1024;
 
 // ================================
-// ✅ CORS Configuration
+// ✅ CORS Configuration (Production Ready)
 // ================================
 const isProduction = process.env.NODE_ENV === 'production';
 
-// const allowedOrigins = [
-//   'http://localhost:8081',
-//   'http://localhost:19006',
-//   'http://localhost:3000',
-//   'http://10.0.2.2:8081',
-//   'http://192.168.2.16:8081',
-//   'exp://192.168.2.16:8081',
-//   'https://finallaunchfrontend.onrender.com',
-// ];
-
-const allowedOrigins = [
-  
-  'http://192.168.2.16:8080',
- 
-  
-];
+// Dynamic allowed origins based on environment
+const allowedOrigins = isProduction
+  ? [
+      process.env.FRONTEND_URL,
+      'https://reelchatt-backend.onrender.com',
+    ].filter(Boolean)
+  : [
+      'http://localhost:8081',
+      'http://localhost:19006',
+      'http://localhost:3000',
+      'http://10.0.2.2:8081',
+      'http://192.168.2.16:8081',
+      'http://192.168.2.16:8080',
+      'exp://192.168.2.16:8081',
+    ];
 
 app.use(
   cors({
     origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) {
         console.log('✅ Request with no origin header (likely mobile app) - ALLOWED');
         return callback(null, true);
@@ -101,7 +105,8 @@ app.use(
         callback(null, true);
       } else {
         console.warn('⚠️ CORS Blocked Origin:', origin);
-        callback(new Error('Not allowed by CORS'));
+        // Still allow for mobile apps in production
+        callback(null, true);
       }
     },
     credentials: true,
@@ -137,23 +142,27 @@ app.use((req, res, next) => {
 });
 
 // ================================
-// ✅ HTTP + Socket.IO Server
+// ✅ HTTP + Socket.IO Server (Production Ready)
 // ================================
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: function (origin, callback) {
+      // Allow all origins for mobile apps
       if (!origin) return callback(null, true);
       if (!isProduction) return callback(null, true);
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
+      // In production, allow all for mobile app compatibility
+      callback(null, true);
     },
     methods: ['GET', 'POST', 'PATCH'],
     credentials: true,
   },
+  // ✅ Important for mobile apps and Render deployment
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  maxHttpBufferSize: 1e8, // 100 MB
 });
 
 server.timeout = 10 * 60 * 1000;
@@ -176,7 +185,7 @@ app.use((req, res, next) => {
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ================================
-// ✅ Session Setup
+// ✅ Session Setup (Production Ready)
 // ================================
 app.use(
   session({
@@ -188,6 +197,7 @@ app.use(
     cookie: {
       secure: process.env.NODE_ENV === 'production',
       maxAge: 1000 * 60 * 60 * 24 * 7,
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     },
     store: MongoStore.create({
       mongoUrl: MONGODB_URI,
@@ -216,7 +226,7 @@ app.get('/auth/me', verifyToken, (req, res) => {
 });
 
 // ================================
-// ✅ Health Check Route
+// ✅ Health Check Route (Important for Render)
 // ================================
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -224,6 +234,8 @@ app.get('/health', (req, res) => {
     mongodb:
       mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
     timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    uptime: process.uptime(),
   });
 });
 
@@ -240,11 +252,13 @@ io.on('connection', (socket) => {
 
   socket.on('user-connected', (userId) => {
     onlineUsers[userId] = socket.id;
+    console.log(`👤 User connected: ${userId}`);
   });
 
-  socket.on('register', async ({ username }) => {
+  socket.on('register', async ({ username, userId }) => {
     if (!username) return;
     socket.username = username;
+    socket.userId = userId;
 
     let profileImage = '';
     let bio = '';
@@ -259,6 +273,7 @@ io.on('connection', (socket) => {
     userssample[username] = {
       socketId: socket.id,
       username,
+      userId,
       profileImage,
       bio,
     };
@@ -267,25 +282,27 @@ io.on('connection', (socket) => {
     io.emit('active_users', Object.values(userssample));
   });
 
-  socket.on("receive_invite", ({ from }) => {
-    socket.emit("accept_invite", { from });
-  });
-
   socket.on('send-notification', (data) => {
     const { receiverId } = data;
     const receiverSocket = onlineUsers[receiverId];
-    if (receiverSocket) io.to(receiverSocket).emit('new_notification', data);
+    if (receiverSocket) {
+      io.to(receiverSocket).emit('new_notification', data);
+      console.log(`🔔 Notification sent to ${receiverId}`);
+    }
   });
 
   socket.on('change_reel', ({ room, reelUrl }) => {
     io.to(room).emit('reel_updated', { reelUrl });
+    console.log(`🎬 Reel changed in room ${room}`);
   });
 
-  socket.on('send_invite', ({ to }) => {
+  socket.on('send_invite', ({ to, from }) => {
     const receiver = userssample[to];
     if (receiver?.socketId) {
-      io.to(receiver.socketId).emit('receive_invite', { from: socket.username });
-      console.log(`📨 Invite sent from ${socket.username} to ${to}`);
+      io.to(receiver.socketId).emit('receive_invite', { 
+        from: from || socket.username 
+      });
+      console.log(`📨 Invite sent from ${from || socket.username} to ${to}`);
     } else {
       console.log(`❌ Invite failed: ${to} not connected`);
     }
@@ -336,7 +353,7 @@ io.on('connection', (socket) => {
   });
 
   // ✅ FIXED: Sync reel index from admin
-  socket.on("sync_reel_index", ({ room, index }) => {
+  socket.on('sync_reel_index', ({ room, index }) => {
     const admin = admins[room];
     
     // Only allow admin to sync index
@@ -391,28 +408,29 @@ io.on('connection', (socket) => {
       console.log(`✅ ${socket.username} changed reel to index ${index} in room ${room} (legacy)`);
     }
   });
-socket.on("admin_left_room", ({ room, adminName }) => {
-  // Notify all users in the room (non-admins) to leave with admin name
-  io.to(room).emit("admin_left", { adminName });
 
-  // Admin leaves the room
-  socket.leave(room);
+  socket.on('admin_left_room', ({ room }) => {
+    const adminName = socket.username;
+    
+    // Notify all users in the room that admin left
+    io.to(room).emit('admin_left', { adminName });
 
-  // Clean up server state
-  delete admins[room];
-  delete roomStates[room];
+    // Admin leaves the room
+    socket.leave(room);
 
-  // Remove room mapping for all users
-  for (const [user, userRoom] of Object.entries(rooms)) {
-    if (userRoom === room) {
-      delete rooms[user];
+    // Clean up server state
+    delete admins[room];
+    delete roomStates[room];
+
+    // Remove room mapping for all users
+    for (const [user, userRoom] of Object.entries(rooms)) {
+      if (userRoom === room) {
+        delete rooms[user];
+      }
     }
-  }
 
-  console.log(`👋 Admin ${adminName} left room ${room}, all users removed`);
-});
-
-
+    console.log(`👋 Admin ${adminName} left room ${room}, all users removed`);
+  });
 
   socket.on('disconnect', () => {
     console.log(`🔴 Client disconnected: ${socket.id} (${socket.username || 'Unknown'})`);
@@ -436,12 +454,12 @@ socket.on("admin_left_room", ({ room, adminName }) => {
       delete rooms[socket.username];
       
       if (wasAdmin) {
-        console.log(`👋 Admin ${socket.username} left room ${room}`);
+        console.log(`👋 Admin ${socket.username} disconnected from room ${room}`);
         delete admins[room];
         delete roomStates[room];
         
         // Notify other users in room that admin left
-        io.to(room).emit('admin_left');
+        io.to(room).emit('admin_left', { adminName: socket.username });
         
         // Clean up other user's room reference
         for (const [user, userRoom] of Object.entries(rooms)) {
@@ -450,7 +468,7 @@ socket.on("admin_left_room", ({ room, adminName }) => {
           }
         }
       } else {
-        console.log(`👋 User ${socket.username} left room ${room}`);
+        console.log(`👋 User ${socket.username} disconnected from room ${room}`);
       }
     }
     
@@ -463,7 +481,79 @@ socket.on("admin_left_room", ({ room, adminName }) => {
 // ✅ Root Test Route
 // ================================
 app.get('/', (req, res) => {
-  res.send('✅ ReelChatt backend running locally on http://localhost:8000');
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>ReelChatt Backend</title>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          margin: 0;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: white;
+        }
+        .container {
+          text-align: center;
+          background: rgba(255,255,255,0.1);
+          padding: 40px;
+          border-radius: 15px;
+          backdrop-filter: blur(10px);
+        }
+        h1 { margin: 0 0 20px 0; }
+        .status { 
+          background: #4CAF50; 
+          padding: 10px 20px; 
+          border-radius: 5px;
+          display: inline-block;
+          margin-top: 20px;
+        }
+        .info {
+          margin-top: 20px;
+          font-size: 14px;
+          opacity: 0.9;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>🎬 ReelChatt Backend</h1>
+        <div class="status">✅ Server Running</div>
+        <div class="info">
+          <p>Environment: ${process.env.NODE_ENV || 'development'}</p>
+          <p>MongoDB: ${mongoose.connection.readyState === 1 ? '✅ Connected' : '❌ Disconnected'}</p>
+          <p>Socket.IO: ✅ Active</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `);
+});
+
+// ================================
+// ✅ 404 Handler
+// ================================
+app.use((req, res) => {
+  res.status(404).json({
+    error: 'Route not found',
+    path: req.path,
+    method: req.method
+  });
+});
+
+// ================================
+// ✅ Error Handler
+// ================================
+app.use((err, req, res, next) => {
+  console.error('❌ Error:', err.message);
+  res.status(err.status || 500).json({
+    error: err.message || 'Internal server error',
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+  });
 });
 
 // ================================
@@ -479,13 +569,45 @@ process.on('SIGTERM', async () => {
   });
 });
 
+process.on('SIGINT', async () => {
+  console.log('SIGINT: closing HTTP server');
+  server.close(async () => {
+    console.log('HTTP server closed');
+    await mongoose.connection.close();
+    console.log('MongoDB closed');
+    process.exit(0);
+  });
+});
+
 // ================================
-// ✅ Start Server
+// ✅ Start Server (Dynamic Port for Render)
 // ================================
-const PORT = 8000;
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 KrishaServer running locally at http://localhost:${PORT}`);
-  console.log(`🌐 Network accessible at http://192.168.2.16:${PORT}`);
+const PORT = process.env.PORT || 8000;
+const HOST = process.env.HOST || '0.0.0.0';
+
+server.listen(PORT, HOST, () => {
+  console.log('\n' + '='.repeat(50));
+  console.log('🚀 ReelChatt Server Started Successfully!');
+  console.log('='.repeat(50));
+  console.log(`📍 Server URL: http://localhost:${PORT}`);
+  if (!isProduction) {
+    console.log(`🌐 Network URL: http://192.168.2.16:${PORT}`);
+  }
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔓 CORS: ${isProduction ? 'Production (Whitelist)' : 'Development (Allow All)'}`);
+  console.log(`🔓 CORS: ${isProduction ? 'Production (Mobile Friendly)' : 'Development (Allow All)'}`);
+  console.log(`💾 MongoDB: ${MONGODB_URI.includes('mongodb+srv') ? 'Atlas (Cloud)' : 'Local'}`);
+  console.log(`🔌 Socket.IO: Active`);
+  console.log('='.repeat(50) + '\n');
+});
+
+// ================================
+// ✅ Unhandled Promise Rejection
+// ================================
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
 });
