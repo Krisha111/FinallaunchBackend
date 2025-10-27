@@ -37,7 +37,7 @@ const app = express();
 // ================================
 // ✅ MongoDB Connection (Production Ready)
 // ================================
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ReelChatt';
+const MONGODB_URI = process.env.MONGODB_URI ;
 
 mongoose
   .connect(MONGODB_URI, { 
@@ -74,7 +74,7 @@ const isProduction = process.env.NODE_ENV === 'production';
 const allowedOrigins = isProduction
   ? [
       process.env.FRONTEND_URL,
-      'https://reelchatt-backend.onrender.com',
+      'https://finallaunchbackend.onrender.com',
     ].filter(Boolean)
   : [
       'http://localhost:8081',
@@ -91,7 +91,7 @@ app.use(
     origin: function (origin, callback) {
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) {
-        console.log('✅ Request with no origin header (likely mobile app) - ALLOWED');
+        // console.log('✅ Request with no origin header (likely mobile app) - ALLOWED');
         return callback(null, true);
       }
 

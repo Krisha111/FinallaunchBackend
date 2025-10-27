@@ -8,7 +8,7 @@ dotenv.config();
 import mongoose from 'mongoose';
 
 // Use environment variable if provided (recommended for production), otherwise fall back to localhost for dev
-const BASE_URL =  "http://192.168.2.16:8000";
+const BASE_URL = process.env.BASE_URL || "https://finallaunchbackend.onrender.com";
 
 /**
  * @desc   Get reels by user ID
@@ -88,15 +88,14 @@ export const getAllReels = async (req, res) => {
 };
 
 export const createReelPost = async (req, res) => {
-  //  console.log("req.body:", req.body); // text fields
-  // console.log("req.files:", req.files); // uploaded files
-
   const { reelScript, reelLocation } = req.body;
-  const reelFile = req.files.reelFiles ? req.files.reelFiles[0] : null;
-  const posterFile = req.files.poster ? req.files.poster[0] : null;
-   if (!reelFile || !posterFile) {
+  const reelFile = req.files?.reelFiles ? req.files.reelFiles[0] : null;
+  const posterFile = req.files?.poster ? req.files.poster[0] : null;
+
+  if (!reelFile || !posterFile) {
     return res.status(400).json({ message: "Missing video or poster file" });
   }
+
   try {
     const {
       reelScript,
@@ -109,7 +108,6 @@ export const createReelPost = async (req, res) => {
     } = req.body;
 
     // ✅ Access uploaded files safely
-    // multer with fields('poster','reelFiles') will produce req.files.poster and req.files.reelFiles (arrays)
     const posterFile = req.files?.poster ? req.files.poster[0] : null;
     const reelFiles = req.files?.reelFiles || [];
 
@@ -121,18 +119,24 @@ export const createReelPost = async (req, res) => {
     // Build array and log each uploaded file (fix: logging inside loop)
     const photoReelImages = [];
     if (reelFiles.length) {
-      reelFiles.forEach((file) => {
+      console.log("🎬 ====== Uploaded Video Files ======");
+      reelFiles.forEach((file, index) => {
         const fileUrl = `${BASE_URL}/uploads/${file.filename}`;
-        console.log(`TheKrishuu uploaded file: ${fileUrl}`);
+        console.log(`🎥 Video ${index + 1} URL: ${fileUrl}`);
         photoReelImages.push(fileUrl);
       });
+      console.log("=====================================");
     } else {
-      console.log("TheKrishuu: No reel files uploaded.");
+      console.log("⚠️ No reel files uploaded.");
     }
 
     if (posterFile) {
-      console.log(`TheKrishuu poster: ${BASE_URL}/uploads/${posterFile.filename}`);
+      console.log(`🖼️ Poster Image URL: ${BASE_URL}/uploads/${posterFile.filename}`);
     }
+
+    // Log body & file info (for debugging)
+    console.log("🧾 req.body:", req.body);
+    console.log("📂 req.files:", req.files);
 
     const newReel = new Reel({
       user: req.user._id,
@@ -154,13 +158,21 @@ export const createReelPost = async (req, res) => {
       "username profileImage email"
     );
 
+    console.log("✅ Reel successfully created for user:", req.user?._id);
+    console.log("✅ Reel DB ID:", newReel._id);
+    console.log("✅ Video URLs saved:", photoReelImages);
+    console.log("✅ Poster URL saved:", posterImage);
+
     res.status(201).json({
       message: "Reel created successfully",
       reel: populatedReel,
     });
   } catch (err) {
     console.error("❌ Error creating reel:", err);
-    res.status(500).json({ message: "Error creating reel", error: err.toString() });
+    res.status(500).json({
+      message: "Error creating reel",
+      error: err.toString(),
+    });
   }
 };
 
@@ -172,10 +184,9 @@ export const createReelPost = async (req, res) => {
 export const getAllReelPosts = async (req, res) => {
   try {
     const userId = req.user?._id; // only works if route is protected
-    // Fetch reels — note: current implementation fetches by userId if set
     const reels = await Reel.find({ user: userId })
       .populate('user', 'username profileImage email')
-      .populate("comments.user", "username profileImage") // only send username & email
+      .populate("comments.user", "username profileImage")
       .sort({ createdAt: -1 });
 
     res.status(200).json(reels);
@@ -200,7 +211,7 @@ export const getMyReelPosts = async (req, res) => {
 
     const reels = await Reel.find(filter)
       .populate("user", "username profileImage email")
-      .populate("comments.user", "username profileImage") // ✅ populate user info
+      .populate("comments.user", "username profileImage")
       .sort({ createdAt: -1 });
 
     res.status(200).json(reels);
