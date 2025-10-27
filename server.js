@@ -1,5 +1,5 @@
 // ================================
-// 📁 server.js (Production Ready for Render + MongoDB Atlas)
+// 📁 server.js (Production Ready for Render + MongoDB Atlas + Expo CORS FIX)
 // ================================
 
 import express from 'express';
@@ -37,10 +37,10 @@ const app = express();
 // ================================
 // ✅ MongoDB Connection (Production Ready)
 // ================================
-const MONGODB_URI = process.env.MONGODB_URI ;
+const MONGODB_URI = process.env.MONGODB_URI;
 
 mongoose
-  .connect(MONGODB_URI, { 
+  .connect(MONGODB_URI, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })
@@ -66,46 +66,38 @@ const MAX_UPLOAD_BYTES =
   Number(process.env.MAX_UPLOAD_BYTES) || 200 * 1024 * 1024;
 
 // ================================
-// ✅ CORS Configuration (Production Ready)
+// ✅ CORS Configuration (Production + Expo Fix)
 // ================================
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Dynamic allowed origins based on environment
-const allowedOrigins = isProduction
-  ? [
-      process.env.FRONTEND_URL,
-      'https://finallaunchbackend.onrender.com',
-    ].filter(Boolean)
-  : [
-      'http://localhost:8081',
-      'http://localhost:19006',
-      'http://localhost:3000',
-      'http://10.0.2.2:8081',
-      'http://192.168.2.16:8081',
-      'http://192.168.2.16:8080',
-      'exp://192.168.2.16:8081',
-    ];
+// ✅ Allow both Render production and Expo dev environments
+const allowedOrigins = [
+  // ✅ Local Expo / Dev URLs
+  'http://localhost:8081',
+  'http://localhost:19006',
+  'http://localhost:3000',
+  'http://10.0.2.2:8081',
+  'http://192.168.2.16:8081',
+  'http://192.168.2.16:8080',
+  'exp://192.168.2.16:8081',
+
+  // ✅ Render Production URLs
+  'https://finallaunchbackend.onrender.com',
+  process.env.FRONTEND_URL,
+].filter(Boolean);
 
 app.use(
   cors({
     origin: function (origin, callback) {
       // Allow requests with no origin (mobile apps, Postman, etc.)
-      if (!origin) {
-        // console.log('✅ Request with no origin header (likely mobile app) - ALLOWED');
-        return callback(null, true);
-      }
-
-      if (!isProduction) {
-        console.log(`✅ Development mode - Origin allowed: ${origin}`);
-        return callback(null, true);
-      }
+      if (!origin) return callback(null, true);
 
       if (allowedOrigins.includes(origin)) {
-        console.log(`✅ Production - Whitelisted origin: ${origin}`);
+        console.log(`✅ CORS Allowed Origin: ${origin}`);
         callback(null, true);
       } else {
-        console.warn('⚠️ CORS Blocked Origin:', origin);
-        // Still allow for mobile apps in production
+        console.warn(`⚠️ CORS Blocked Origin: ${origin}`);
+        // Still allow unknown origins for mobile apps (Render mobile-friendly)
         callback(null, true);
       }
     },
@@ -150,19 +142,16 @@ const io = new Server(server, {
     origin: function (origin, callback) {
       // Allow all origins for mobile apps
       if (!origin) return callback(null, true);
-      if (!isProduction) return callback(null, true);
-      // In production, allow all for mobile app compatibility
       callback(null, true);
     },
     methods: ['GET', 'POST', 'PATCH'],
     credentials: true,
   },
-  // ✅ Important for mobile apps and Render deployment
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,
   pingInterval: 25000,
   upgradeTimeout: 30000,
-  maxHttpBufferSize: 1e8, // 100 MB
+  maxHttpBufferSize: 1e8,
 });
 
 server.timeout = 10 * 60 * 1000;
@@ -226,7 +215,7 @@ app.get('/auth/me', verifyToken, (req, res) => {
 });
 
 // ================================
-// ✅ Health Check Route (Important for Render)
+// ✅ Health Check Route
 // ================================
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -240,12 +229,12 @@ app.get('/health', (req, res) => {
 });
 
 // ================================
-// ✅ SOCKET.IO HANDLERS (FIXED REEL SYNC)
+// ✅ SOCKET.IO HANDLERS
 // ================================
 let userssample = {};
 let rooms = {};
 let admins = {};
-let roomStates = {}; // Track current reel index per room
+let roomStates = {};
 
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
@@ -299,8 +288,8 @@ io.on('connection', (socket) => {
   socket.on('send_invite', ({ to, from }) => {
     const receiver = userssample[to];
     if (receiver?.socketId) {
-      io.to(receiver.socketId).emit('receive_invite', { 
-        from: from || socket.username 
+      io.to(receiver.socketId).emit('receive_invite', {
+        from: from || socket.username,
       });
       console.log(`📨 Invite sent from ${from || socket.username} to ${to}`);
     } else {
@@ -311,24 +300,20 @@ io.on('connection', (socket) => {
   socket.on('accept_invite', ({ from }) => {
     const room = `${from}-${socket.username}`;
     socket.join(room);
-    
+
     const fromUser = userssample[from];
     if (fromUser?.socketId) {
       const fromSocket = io.sockets.sockets.get(fromUser.socketId);
       if (fromSocket) {
         fromSocket.join(room);
-        
-        // Initialize room state with admin's current position (default 0)
+
         roomStates[room] = { currentIndex: 0, isPlaying: true };
-        
-        // Set admin
         admins[room] = from;
         rooms[socket.username] = room;
         rooms[from] = room;
-        
+
         console.log(`✅ Room created: ${room} | Admin: ${from}`);
-        
-        // Notify admin that invite was accepted (admin gets isAdmin: true)
+
         io.to(fromUser.socketId).emit('invite_accepted', {
           by: socket.username,
           from: fromUser.username,
@@ -336,10 +321,9 @@ io.on('connection', (socket) => {
           isAdmin: true,
           currentReelIndex: 0,
         });
-        
-        // Notify non-admin that they joined (gets isAdmin: false and current index)
-        io.to(socket.id).emit('joined_room', { 
-          room, 
+
+        io.to(socket.id).emit('joined_room', {
+          room,
           isAdmin: false,
           currentReelIndex: 0,
         });
@@ -348,131 +332,84 @@ io.on('connection', (socket) => {
   });
 
   socket.on('send_message', ({ room, message, sender }) => {
-    console.log(`💬 Message in ${room} from ${sender}: ${message.substring(0, 50)}`);
+    console.log(
+      `💬 Message in ${room} from ${sender}: ${message.substring(0, 50)}`
+    );
     io.to(room).emit('receive_message', { sender, message });
   });
 
-  // ✅ FIXED: Sync reel index from admin
   socket.on('sync_reel_index', ({ room, index }) => {
     const admin = admins[room];
-    
-    // Only allow admin to sync index
     if (socket.username === admin) {
-      // Update room state
       if (roomStates[room]) {
         roomStates[room].currentIndex = index;
       } else {
         roomStates[room] = { currentIndex: index, isPlaying: true };
       }
-      
-      console.log(`🔄 Admin ${socket.username} synced reel index to ${index} in room ${room}`);
-      
-      // Broadcast to all OTHER users in room (not back to admin)
+      console.log(
+        `🔄 Admin ${socket.username} synced reel index to ${index} in room ${room}`
+      );
       socket.to(room).emit('sync_reel_index', { index });
-    } else {
-      console.warn(`⚠️ Non-admin ${socket.username} tried to sync index in room ${room}`);
     }
   });
 
-  // ✅ FIXED: Sync play state from admin
   socket.on('reel_play', ({ room, index, isPlaying }) => {
     const admin = admins[room];
-    
-    // Only allow admin to control playback
     if (socket.username === admin) {
-      // Update room state
       if (roomStates[room]) {
         roomStates[room].currentIndex = index;
         roomStates[room].isPlaying = isPlaying;
       } else {
         roomStates[room] = { currentIndex: index, isPlaying };
       }
-      
-      console.log(`▶️ Admin ${socket.username} set play state: index=${index}, isPlaying=${isPlaying} in room ${room}`);
-      
-      // Broadcast to all OTHER users in room
+      console.log(
+        `▶️ Admin ${socket.username} set play state: index=${index}, isPlaying=${isPlaying} in room ${room}`
+      );
       socket.to(room).emit('reel_play_state', { index, isPlaying });
-    } else {
-      console.warn(`⚠️ Non-admin ${socket.username} tried to control playback in room ${room}`);
-    }
-  });
-
-  // Legacy support (if needed)
-  socket.on('change_reel_index', ({ room, index }) => {
-    const admin = admins[room];
-    if (socket.username === admin) {
-      if (roomStates[room]) {
-        roomStates[room].currentIndex = index;
-      }
-      socket.to(room).emit('sync_reel_index', { index });
-      console.log(`✅ ${socket.username} changed reel to index ${index} in room ${room} (legacy)`);
     }
   });
 
   socket.on('admin_left_room', ({ room }) => {
     const adminName = socket.username;
-    
-    // Notify all users in the room that admin left
     io.to(room).emit('admin_left', { adminName });
-
-    // Admin leaves the room
     socket.leave(room);
-
-    // Clean up server state
     delete admins[room];
     delete roomStates[room];
-
-    // Remove room mapping for all users
     for (const [user, userRoom] of Object.entries(rooms)) {
       if (userRoom === room) {
         delete rooms[user];
       }
     }
-
-    console.log(`👋 Admin ${adminName} left room ${room}, all users removed`);
+    console.log(`👋 Admin ${adminName} left room ${room}`);
   });
 
   socket.on('disconnect', () => {
-    console.log(`🔴 Client disconnected: ${socket.id} (${socket.username || 'Unknown'})`);
-    
+    console.log(
+      `🔴 Client disconnected: ${socket.id} (${socket.username || 'Unknown'})`
+    );
     if (socket.username) {
       delete userssample[socket.username];
     }
-    
-    // Remove from onlineUsers
     for (const [uid, sid] of Object.entries(onlineUsers)) {
       if (sid === socket.id) {
         delete onlineUsers[uid];
       }
     }
-    
-    // Handle room cleanup
     const room = rooms[socket.username];
     const wasAdmin = admins[room] === socket.username;
-    
     if (room) {
       delete rooms[socket.username];
-      
       if (wasAdmin) {
-        console.log(`👋 Admin ${socket.username} disconnected from room ${room}`);
         delete admins[room];
         delete roomStates[room];
-        
-        // Notify other users in room that admin left
         io.to(room).emit('admin_left', { adminName: socket.username });
-        
-        // Clean up other user's room reference
         for (const [user, userRoom] of Object.entries(rooms)) {
           if (userRoom === room) {
             delete rooms[user];
           }
         }
-      } else {
-        console.log(`👋 User ${socket.username} disconnected from room ${room}`);
       }
     }
-    
-    // Broadcast updated user list
     io.emit('active_users', Object.values(userssample));
   });
 });
@@ -525,7 +462,9 @@ app.get('/', (req, res) => {
         <div class="status">✅ Server Running</div>
         <div class="info">
           <p>Environment: ${process.env.NODE_ENV || 'development'}</p>
-          <p>MongoDB: ${mongoose.connection.readyState === 1 ? '✅ Connected' : '❌ Disconnected'}</p>
+          <p>MongoDB: ${
+            mongoose.connection.readyState === 1 ? '✅ Connected' : '❌ Disconnected'
+          }</p>
           <p>Socket.IO: ✅ Active</p>
         </div>
       </div>
@@ -541,7 +480,7 @@ app.use((req, res) => {
   res.status(404).json({
     error: 'Route not found',
     path: req.path,
-    method: req.method
+    method: req.method,
   });
 });
 
@@ -552,7 +491,7 @@ app.use((err, req, res, next) => {
   console.error('❌ Error:', err.message);
   res.status(err.status || 500).json({
     error: err.message || 'Internal server error',
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack }),
   });
 });
 
@@ -594,8 +533,16 @@ server.listen(PORT, HOST, () => {
     console.log(`🌐 Network URL: http://192.168.2.16:${PORT}`);
   }
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔓 CORS: ${isProduction ? 'Production (Mobile Friendly)' : 'Development (Allow All)'}`);
-  console.log(`💾 MongoDB: ${MONGODB_URI.includes('mongodb+srv') ? 'Atlas (Cloud)' : 'Local'}`);
+  console.log(
+    `🔓 CORS: ${
+      isProduction ? 'Production (Mobile Friendly)' : 'Development (Allow All)'
+    }`
+  );
+  console.log(
+    `💾 MongoDB: ${
+      MONGODB_URI.includes('mongodb+srv') ? 'Atlas (Cloud)' : 'Local'
+    }`
+  );
   console.log(`🔌 Socket.IO: Active`);
   console.log('='.repeat(50) + '\n');
 });
