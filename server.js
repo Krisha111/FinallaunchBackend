@@ -235,7 +235,11 @@ let userssample = {};
 let rooms = {};
 let admins = {};
 let roomStates = {};
-const pendingInvites = new Map(); 
+
+// ✅ Pending invites - OUTSIDE connection handler (persists across connections)
+const pendingInvites = new Map();
+
+// ✅ ALL socket.on() handlers MUST be INSIDE this io.on('connection') block
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
 
@@ -285,24 +289,7 @@ io.on('connection', (socket) => {
     console.log(`🎬 Reel changed in room ${room}`);
   });
 
-  // socket.on('send_invite', ({ to, from }) => {
-  //   const receiver = userssample[to];
-  //   if (receiver?.socketId) {
-  //     io.to(receiver.socketId).emit('receive_invite', {
-  //       from: from || socket.username,
-  //     });
-  //     console.log(`📨 Invite sent from ${from || socket.username} to ${to}`);
-  //   } else {
-  //     console.log(`❌ Invite failed: ${to} not connected`);
-  //   }
-  // });
   // ================================
-// ✅ NOTIFICATION SYSTEM
-// ================================
-
-// Store pending invites in memory (use Redis/MongoDB for production)
-// key: username, value: array of invites
-// ================================
   // ✅ NOTIFICATION SYSTEM
   // ================================
 
@@ -314,7 +301,7 @@ io.on('connection', (socket) => {
       to,
       timestamp,
       status: 'pending',
-      id: `invite_${timestamp}_${from}_${to}`
+      id: `invite_${timestamp}_${from}_${to}`,
     };
 
     // Store pending invite
@@ -326,12 +313,16 @@ io.on('connection', (socket) => {
     if (receiver?.socketId) {
       // User is online - send real-time notification
       io.to(receiver.socketId).emit('receive_invite', inviteData);
-      console.log(`📨 Real-time invite sent from ${from || socket.username} to ${to}`);
+      console.log(
+        `📨 Real-time invite sent from ${from || socket.username} to ${to}`
+      );
     } else {
       // User is offline - notification will be fetched when they come online
-      console.log(`📭 Offline invite stored for ${to} from ${from || socket.username}`);
+      console.log(
+        `📭 Offline invite stored for ${to} from ${from || socket.username}`
+      );
     }
-    
+
     // Send confirmation to sender
     socket.emit('invite_sent', { success: true, to });
   });
@@ -339,7 +330,7 @@ io.on('connection', (socket) => {
   // Get pending invites when user comes online
   socket.on('get_pending_invites', ({ username }) => {
     const invites = pendingInvites.get(username) || [];
-    const pendingOnly = invites.filter(inv => inv.status === 'pending');
+    const pendingOnly = invites.filter((inv) => inv.status === 'pending');
     socket.emit('pending_invites', pendingOnly);
     console.log(`📬 Sent ${pendingOnly.length} pending invites to ${username}`);
   });
@@ -348,10 +339,10 @@ io.on('connection', (socket) => {
   socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
     // Remove from pending invites
     const userInvites = pendingInvites.get(to) || [];
-    const inviteIndex = userInvites.findIndex(inv => inv.id === inviteId);
-    
+    const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
+
     if (inviteIndex !== -1) {
-      userInvites.splice(inviteIndex, 1); // ✅ CHANGED: Remove instead of marking as accepted
+      userInvites.splice(inviteIndex, 1);
     }
 
     // Create room (same logic as accept_invite)
@@ -369,7 +360,9 @@ io.on('connection', (socket) => {
         rooms[to] = room;
         rooms[from] = room;
 
-        console.log(`✅ Room created from notification: ${room} | Admin: ${from}`);
+        console.log(
+          `✅ Room created from notification: ${room} | Admin: ${from}`
+        );
 
         io.to(fromUser.socketId).emit('invite_accepted', {
           by: to,
@@ -387,8 +380,8 @@ io.on('connection', (socket) => {
       }
     } else {
       // Sender is offline
-      socket.emit('invite_accept_failed', { 
-        message: `${from} is currently offline` 
+      socket.emit('invite_accept_failed', {
+        message: `${from} is currently offline`,
       });
     }
   });
@@ -396,8 +389,8 @@ io.on('connection', (socket) => {
   // Reject invite
   socket.on('reject_invite', ({ inviteId, username }) => {
     const userInvites = pendingInvites.get(username) || [];
-    const inviteIndex = userInvites.findIndex(inv => inv.id === inviteId);
-    
+    const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
+
     if (inviteIndex !== -1) {
       userInvites.splice(inviteIndex, 1);
       socket.emit('invite_rejected', { inviteId });
@@ -405,14 +398,14 @@ io.on('connection', (socket) => {
     }
   });
 
-  // ✅ UPDATE: Regular accept_invite also checks pending invites
+  // ✅ Regular accept_invite (from modal) - WITH PENDING INVITE CLEANUP
   socket.on('accept_invite', ({ from }) => {
     const room = `${from}-${socket.username}`;
     socket.join(room);
 
     // ✅ Remove from pending invites if it exists
     const userInvites = pendingInvites.get(socket.username) || [];
-    const inviteIndex = userInvites.findIndex(inv => inv.from === from);
+    const inviteIndex = userInvites.findIndex((inv) => inv.from === from);
     if (inviteIndex !== -1) {
       userInvites.splice(inviteIndex, 1);
     }
@@ -528,254 +521,25 @@ io.on('connection', (socket) => {
     }
     io.emit('active_users', Object.values(userssample));
   });
-});
+}); // ✅ END of io.on('connection') - CRITICAL: All socket.on() must be ABOVE this line
 
-// ✅ Clear old invites (older than 24 hours) - MOVE OUTSIDE CONNECTION HANDLER
+// ✅ Clear old invites - THIS is outside because it's a setInterval, not a socket listener
 setInterval(() => {
   const now = Date.now();
   const oneDayMs = 24 * 60 * 60 * 1000;
-  
+
   pendingInvites.forEach((invites, username) => {
-    const filtered = invites.filter(inv => (now - inv.timestamp) < oneDayMs);
+    const filtered = invites.filter((inv) => now - inv.timestamp < oneDayMs);
     if (filtered.length > 0) {
       pendingInvites.set(username, filtered);
     } else {
       pendingInvites.delete(username);
     }
   });
-  console.log(`🧹 Cleaned old invites. Current pending: ${pendingInvites.size} users`);
+  console.log(
+    `🧹 Cleaned old invites. Current pending: ${pendingInvites.size} users`
+  );
 }, 60 * 60 * 1000); // Run every hour
-
-// socket.on('send_invite', ({ to, from }) => {
-//   const receiver = userssample[to];
-//   const timestamp = Date.now();
-//   const inviteData = {
-//     from: from || socket.username,
-//     to,
-//     timestamp,
-//     status: 'pending',
-//     id: `invite_${timestamp}_${from}_${to}`
-//   };
-
-//   // Store pending invite
-//   if (!pendingInvites.has(to)) {
-//     pendingInvites.set(to, []);
-//   }
-//   pendingInvites.get(to).push(inviteData);
-
-//   if (receiver?.socketId) {
-//     // User is online - send real-time notification
-//     io.to(receiver.socketId).emit('receive_invite', inviteData);
-//     console.log(`📨 Real-time invite sent from ${from || socket.username} to ${to}`);
-//   } else {
-//     // User is offline - notification will be fetched when they come online
-//     console.log(`📭 Offline invite stored for ${to} from ${from || socket.username}`);
-//   }
-  
-//   // Send confirmation to sender
-//   socket.emit('invite_sent', { success: true, to });
-// });
-
-// // Get pending invites when user comes online
-// socket.on('get_pending_invites', ({ username }) => {
-//   const invites = pendingInvites.get(username) || [];
-//   const pendingOnly = invites.filter(inv => inv.status === 'pending');
-//   socket.emit('pending_invites', pendingOnly);
-//   console.log(`📬 Sent ${pendingOnly.length} pending invites to ${username}`);
-// });
-
-// // Accept invite from notification
-// socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
-//   // Remove from pending invites
-//   const userInvites = pendingInvites.get(to) || [];
-//   const inviteIndex = userInvites.findIndex(inv => inv.id === inviteId);
-  
-//   if (inviteIndex !== -1) {
-//     userInvites[inviteIndex].status = 'accepted';
-//   }
-
-//   // Create room (same logic as accept_invite)
-//   const room = `${from}-${to}`;
-//   socket.join(room);
-
-//   const fromUser = userssample[from];
-//   if (fromUser?.socketId) {
-//     const fromSocket = io.sockets.sockets.get(fromUser.socketId);
-//     if (fromSocket) {
-//       fromSocket.join(room);
-
-//       roomStates[room] = { currentIndex: 0, isPlaying: true };
-//       admins[room] = from;
-//       rooms[to] = room;
-//       rooms[from] = room;
-
-//       console.log(`✅ Room created from notification: ${room} | Admin: ${from}`);
-
-//       io.to(fromUser.socketId).emit('invite_accepted', {
-//         by: to,
-//         from: from,
-//         room,
-//         isAdmin: true,
-//         currentReelIndex: 0,
-//       });
-
-//       io.to(socket.id).emit('joined_room', {
-//         room,
-//         isAdmin: false,
-//         currentReelIndex: 0,
-//       });
-//     }
-//   } else {
-//     // Sender is offline
-//     socket.emit('invite_accept_failed', { 
-//       message: `${from} is currently offline` 
-//     });
-//   }
-// });
-
-// // Reject invite
-// socket.on('reject_invite', ({ inviteId, username }) => {
-//   const userInvites = pendingInvites.get(username) || [];
-//   const inviteIndex = userInvites.findIndex(inv => inv.id === inviteId);
-  
-//   if (inviteIndex !== -1) {
-//     userInvites.splice(inviteIndex, 1);
-//     socket.emit('invite_rejected', { inviteId });
-//     console.log(`❌ Invite ${inviteId} rejected by ${username}`);
-//   }
-// });
-
-// // Clear old invites (older than 24 hours)
-// setInterval(() => {
-//   const now = Date.now();
-//   const oneDayMs = 24 * 60 * 60 * 1000;
-  
-//   pendingInvites.forEach((invites, username) => {
-//     const filtered = invites.filter(inv => (now - inv.timestamp) < oneDayMs);
-//     if (filtered.length > 0) {
-//       pendingInvites.set(username, filtered);
-//     } else {
-//       pendingInvites.delete(username);
-//     }
-//   });
-// }, 60 * 60 * 1000); // Run every hour
-
-  socket.on('accept_invite', ({ from }) => {
-    const room = `${from}-${socket.username}`;
-    socket.join(room);
-
-    const fromUser = userssample[from];
-    if (fromUser?.socketId) {
-      const fromSocket = io.sockets.sockets.get(fromUser.socketId);
-      if (fromSocket) {
-        fromSocket.join(room);
-
-        roomStates[room] = { currentIndex: 0, isPlaying: true };
-        admins[room] = from;
-        rooms[socket.username] = room;
-        rooms[from] = room;
-
-        console.log(`✅ Room created: ${room} | Admin: ${from}`);
-
-        io.to(fromUser.socketId).emit('invite_accepted', {
-          by: socket.username,
-          from: fromUser.username,
-          room,
-          isAdmin: true,
-          currentReelIndex: 0,
-        });
-
-        io.to(socket.id).emit('joined_room', {
-          room,
-          isAdmin: false,
-          currentReelIndex: 0,
-        });
-      }
-    }
-  });
-
-  socket.on('send_message', ({ room, message, sender }) => {
-    console.log(
-      `💬 Message in ${room} from ${sender}: ${message.substring(0, 50)}`
-    );
-    io.to(room).emit('receive_message', { sender, message });
-  });
-
-  socket.on('sync_reel_index', ({ room, index }) => {
-    const admin = admins[room];
-    if (socket.username === admin) {
-      if (roomStates[room]) {
-        roomStates[room].currentIndex = index;
-      } else {
-        roomStates[room] = { currentIndex: index, isPlaying: true };
-      }
-      console.log(
-        `🔄 Admin ${socket.username} synced reel index to ${index} in room ${room}`
-      );
-      socket.to(room).emit('sync_reel_index', { index });
-    }
-  });
-
-  socket.on('reel_play', ({ room, index, isPlaying }) => {
-    const admin = admins[room];
-    if (socket.username === admin) {
-      if (roomStates[room]) {
-        roomStates[room].currentIndex = index;
-        roomStates[room].isPlaying = isPlaying;
-      } else {
-        roomStates[room] = { currentIndex: index, isPlaying };
-      }
-      console.log(
-        `▶️ Admin ${socket.username} set play state: index=${index}, isPlaying=${isPlaying} in room ${room}`
-      );
-      socket.to(room).emit('reel_play_state', { index, isPlaying });
-    }
-  });
-
-  socket.on('admin_left_room', ({ room }) => {
-    const adminName = socket.username;
-    io.to(room).emit('admin_left', { adminName });
-    socket.leave(room);
-    delete admins[room];
-    delete roomStates[room];
-    for (const [user, userRoom] of Object.entries(rooms)) {
-      if (userRoom === room) {
-        delete rooms[user];
-      }
-    }
-    console.log(`👋 Admin ${adminName} left room ${room}`);
-  });
-
-  socket.on('disconnect', () => {
-    console.log(
-      `🔴 Client disconnected: ${socket.id} (${socket.username || 'Unknown'})`
-    );
-    if (socket.username) {
-      delete userssample[socket.username];
-    }
-    for (const [uid, sid] of Object.entries(onlineUsers)) {
-      if (sid === socket.id) {
-        delete onlineUsers[uid];
-      }
-    }
-    const room = rooms[socket.username];
-    const wasAdmin = admins[room] === socket.username;
-    if (room) {
-      delete rooms[socket.username];
-      if (wasAdmin) {
-        delete admins[room];
-        delete roomStates[room];
-        io.to(room).emit('admin_left', { adminName: socket.username });
-        for (const [user, userRoom] of Object.entries(rooms)) {
-          if (userRoom === room) {
-            delete rooms[user];
-          }
-        }
-      }
-    }
-    io.emit('active_users', Object.values(userssample));
-  });
-
 
 // ================================
 // ✅ Root Test Route
@@ -826,7 +590,9 @@ app.get('/', (req, res) => {
         <div class="info">
           <p>Environment: ${process.env.NODE_ENV || 'development'}</p>
           <p>MongoDB: ${
-            mongoose.connection.readyState === 1 ? '✅ Connected' : '❌ Disconnected'
+            mongoose.connection.readyState === 1
+              ? '✅ Connected'
+              : '❌ Disconnected'
           }</p>
           <p>Socket.IO: ✅ Active</p>
         </div>
