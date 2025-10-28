@@ -4,6 +4,10 @@ import jwt from 'jsonwebtoken';
 
 const userSchema = new mongoose.Schema({
   name: { type: String, default: "", trim: true, },
+  pushToken: {
+  type: String,
+  default: null
+},
   bio: { type: String, default: "" },
   profileImage: { type: String, default: "" }, // store base64 or URL
   isOnline: { type: Boolean, default: false }, // track online status
