@@ -1,4 +1,4 @@
-// src/controllers/ProfileController.js
+// src/controllers/ProfileController.js - COMPLETE FILE WITH HTTPS SOLUTION
 import User from "../../model/User.js";
 import mongoose from "mongoose";
 import axios from "axios";
@@ -6,6 +6,25 @@ import FormData from "form-data";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import dotenv from 'dotenv';
+dotenv.config();
+
+// ✅ USE BASE_URL WITH HTTPS
+const BASE_URL = process.env.BASE_URL || "https://finallaunchbackend.onrender.com";
+
+// ✅ Force HTTPS in production - THIS FIXES THE ROOT CAUSE
+const getSecureUrl = (pathOrUrl) => {
+  if (!pathOrUrl) return null;
+  
+  // If it's a relative path, prepend BASE_URL
+  let url = pathOrUrl.startsWith('http') ? pathOrUrl : `${BASE_URL}${pathOrUrl}`;
+  
+  // Force HTTPS
+  url = url.replace(/^http:/, 'https:');
+  
+  console.log(`🔒 Converted URL: ${pathOrUrl} -> ${url}`);
+  return url;
+};
 
 // -------------------- Multer Setup --------------------
 const storage = multer.diskStorage({
@@ -59,12 +78,14 @@ export const updateProfileImageById = async (req, res) => {
     // 1️⃣ If image uploaded via Multer
     if (req.file) {
       userId = req.params.id || req.body.userId;
-      imageUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+      imageUrl = getSecureUrl(`/uploads/${req.file.filename}`);
+      console.log("🖼️ Profile Image URL (from file):", imageUrl);
     } 
     // 2️⃣ If frontend sends profileImage URL/base64
     else if (req.body.profileImage && req.body.userId) {
       userId = req.body.userId;
-      imageUrl = req.body.profileImage;
+      imageUrl = getSecureUrl(req.body.profileImage);
+      console.log("🖼️ Profile Image URL (from body):", imageUrl);
     } else {
       return res.status(400).json({ error: "Missing userId or profileImage" });
     }
@@ -81,6 +102,9 @@ export const updateProfileImageById = async (req, res) => {
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
+    console.log("✅ Profile image updated for user:", userId);
+    console.log("✅ Saved to DB:", imageUrl);
+    
     res.json({ ...user.toObject(), profileImage: imageUrl });
   } catch (err) {
     console.error("Error updating profile image:", err);
@@ -95,8 +119,10 @@ export const getProfile = async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const userObj = user.toObject();
-    if (userObj.profileImage && userObj.profileImage.startsWith("/uploads")) {
-      userObj.profileImage = `${req.protocol}://${req.get("host")}${userObj.profileImage}`;
+    
+    // ✅ Force HTTPS on output
+    if (userObj.profileImage) {
+      userObj.profileImage = getSecureUrl(userObj.profileImage);
     }
 
     res.json(userObj);
@@ -117,16 +143,21 @@ export const getProfileById = async (req, res) => {
 
     const user = await User.findById(id)
       .select("-password -__v")
-      .populate("reels"); // optional
-// console.log(user)
+      .populate("reels");
+      
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const userObject = user.toObject();
     userObject.reelsCount = user.reels ? user.reels.length : 0;
 
-    if (userObject.profileImage && userObject.profileImage.startsWith("/uploads")) {
-      userObject.profileImage = `${req.protocol}://${req.get("host")}${userObject.profileImage}`;
+    // ✅ Force HTTPS on output
+    if (userObject.profileImage) {
+      userObject.profileImage = getSecureUrl(userObject.profileImage);
     }
+
+    console.log("🔍 Fetched profile:", userObject.username);
+    console.log("🖼️ Profile Image URL:", userObject.profileImage);
+console.log("🖼️ Profile Image URL being sent to frontenddddddd:", userObject.profileImage);
 
     res.json(userObject);
 
@@ -137,7 +168,6 @@ export const getProfileById = async (req, res) => {
 };
 
 // -------------------- Update Profile --------------------
-// -------------------- Update Profile --------------------
 export const updateProfile = async (req, res) => {
   try {
     const body = req.body || {};
@@ -145,46 +175,47 @@ export const updateProfile = async (req, res) => {
 
     let imageUrl = body.profileImage;
 
-    // ✅ If image uploaded via Multer (file:// or blob:)
+    // ✅ Handle file upload
     if (req.file) {
-      imageUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+      imageUrl = getSecureUrl(`/uploads/${req.file.filename}`);
+      console.log("🖼️ New profile image uploaded:", imageUrl);
     } 
-    // ✅ If frontend sent JSON with existing url
-    else if (imageUrl?.startsWith("/uploads")) {
-      imageUrl = `${req.protocol}://${req.get("host")}${imageUrl}`;
+    // ✅ Convert any existing URL to HTTPS
+    else if (imageUrl) {
+      imageUrl = getSecureUrl(imageUrl);
+      console.log("🔄 Converted existing URL:", imageUrl);
     }
 
-   const updatedUser = await User.findOneAndUpdate(
-  { username: req.params.username },
-  {
-    ...(name !== undefined && { name }),
-    ...(bio !== undefined && { bio }),
-    ...(imageUrl !== undefined && { profileImage: imageUrl }),
-  },
-  { new: true }
-);
+    const updatedUser = await User.findOneAndUpdate(
+      { username: req.params.username },
+      {
+        ...(name !== undefined && { name }),
+        ...(bio !== undefined && { bio }),
+        ...(imageUrl !== undefined && { profileImage: imageUrl }),
+      },
+      { new: true }
+    );
 
-if (!updatedUser) return res.status(404).json({ error: "User not found" });
+    if (!updatedUser) return res.status(404).json({ error: "User not found" });
 
-// Convert to plain object
-const userObject = updatedUser.toObject();
+    const userObject = updatedUser.toObject();
 
-// Always ensure profileImage is full URL
-if (userObject.profileImage && userObject.profileImage.startsWith("/uploads")) {
-  userObject.profileImage = `${req.protocol}://${req.get("host")}${userObject.profileImage}`;
-}
+    // ✅ Force HTTPS on output (safety check)
+    if (userObject.profileImage) {
+      userObject.profileImage = getSecureUrl(userObject.profileImage);
+    }
 
+    console.log("✅ Profile updated for:", req.params.username);
+    console.log("🖼️ Final profile image URL:", userObject.profileImage);
+    console.log("💾 Saved to DB:", imageUrl);
 
-
-res.json(userObject);
-
+    res.json(userObject);
 
   } catch (err) {
     console.error("Error updating profile:", err);
     res.status(500).json({ error: err.message });
   }
 };
-
 
 // -------------------- Delete Profile --------------------
 export const deleteProfile = async (req, res) => {
@@ -203,10 +234,11 @@ export const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({}, "-__v");
 
+    // ✅ Force HTTPS on all user profile images
     const usersWithFullUrls = users.map((u) => {
       const obj = u.toObject();
-      if (obj.profileImage && obj.profileImage.startsWith("/uploads")) {
-        obj.profileImage = `${req.protocol}://${req.get("host")}${obj.profileImage}`;
+      if (obj.profileImage) {
+        obj.profileImage = getSecureUrl(obj.profileImage);
       }
       return obj;
     });
