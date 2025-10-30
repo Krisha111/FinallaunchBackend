@@ -13,6 +13,8 @@ import {
   getProfileById,
   updateProfileImageById,
   removeBackground,
+  getChosenList,
+  getBondsList,
 } from "../../controller/Profile/ProfileInformationController.js";
 
 const router = express.Router();
@@ -31,7 +33,9 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // -------------------- Routes --------------------
-
+// ✅ NEW routes
+router.get("/:userId/chosen", getChosenList);
+router.get("/:userId/bonds", getBondsList);
 // Remove background
 router.post("/remove-background", upload.single("image"), removeBackground);
 

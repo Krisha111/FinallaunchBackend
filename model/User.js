@@ -8,6 +8,8 @@ const userSchema = new mongoose.Schema({
   type: String,
   default: null
 },
+chosen: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  bonds: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   bio: { type: String, default: "" },
   profileImage: { type: String, default: "" }, // store base64 or URL
   isOnline: { type: Boolean, default: false }, // track online status

@@ -39,6 +39,36 @@ const storage = multer.diskStorage({
 });
 export const upload = multer({ storage });
 
+
+// ✅ Return list of "chosen" users
+export const getChosenList = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId).populate("chosen", "name username profileImage");
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json(user.chosen || []);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// ✅ Return list of "bonds" users
+export const getBondsList = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId).populate("bonds", "name username profileImage");
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json(user.bonds || []);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+
 // -------------------- Remove Background --------------------
 export const removeBackground = async (req, res) => {
   try {
