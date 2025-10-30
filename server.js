@@ -11,6 +11,7 @@ import signUpRouteUser from './routes/Authentication/SignUp.js';
 import signInRouteUser from './routes/Authentication/signIn.js';
 import dotenv from 'dotenv';
 import path from 'path';
+import requestRoutes from './routes/requestRoutes.js'
 import profileInformationRoutes from './routes/Profile/ProfileInformationRoute.js';
 import verifyToken from './MiddleWare/verifyToken.js';
 import reelRoutes from './routes/NewDrop/Reel.js';
@@ -203,7 +204,8 @@ app.use('/auth', signUpRouteUser);
 app.use('/', signInRouteUser);
 app.use('/api/reels', reelRoutes);
 app.use('/api/profileInformation', profileInformationRoutes);
-
+// Register the route
+app.use('/api/requests', requestRoutes);
 // ================================
 // ✅ Auth Check Route
 // ================================
