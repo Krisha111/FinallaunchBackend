@@ -1,6 +1,6 @@
-import Request from '../models/Request.js';
-import User from '../models/User.js';
-import Notification from '../models/Notification.js';
+import Request from '../model/Request.js';
+import User from '../model/User.js';
+import Notification from '../model/notification.js';
 
 // Send bond request
 export const sendBondRequest = async (req, res) => {

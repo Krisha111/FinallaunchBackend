@@ -9,7 +9,7 @@ import {
   acceptRequest,
   rejectRequest,
   cancelRequest
-} from '../controllers/requestController.js';
+} from '../controller/requestController.js';
 
 const router = express.Router();
 
