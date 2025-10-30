@@ -3,72 +3,121 @@ import User from '../model/User.js';
 import Notification from '../model/Notification.js';
 
 // Send bond request
-export const sendBondRequest = async (req, res) => {
+const sendBondRequest = async (recipientId) => {
+  console.log('🎯 sendBondRequest called with recipientId:', recipientId);
+  
+  if (!token) {
+    console.log('❌ No token found');
+    Alert.alert("Error", "Please login first");
+    return;
+  }
+  
+  console.log('✅ Token exists:', token?.substring(0, 20) + '...');
+  
+  setRequestLoading(prev => ({ ...prev, [recipientId]: 'bond' }));
+  
   try {
-    const { recipientId } = req.body;
-    const senderId = req.user._id;
-
-    // Validate recipientId
-    if (!recipientId) {
-      return res.status(400).json({ message: 'Recipient ID is required' });
-    }
-
-    // Check if trying to send request to self
-    if (senderId.toString() === recipientId) {
-      return res.status(400).json({ message: 'Cannot send request to yourself' });
-    }
-
-    // Check if request already exists
-    const existingRequest = await Request.findOne({
-      sender: senderId,
-      recipient: recipientId,
-      type: 'bond',
-      status: 'pending'
+    console.log('📤 Sending POST request to:', 'https://finallaunchbackend.onrender.com/api/requests/send-bond');
+    console.log('📦 Request body:', { recipientId });
+    console.log('🔐 Authorization header:', `Bearer ${token.substring(0, 20)}...`);
+    
+    const response = await axios.post(
+      `https://finallaunchbackend.onrender.com/api/requests/send-bond`,
+      { recipientId },
+      { 
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        } 
+      }
+    );
+    
+    console.log('✅ Response:', response.data);
+    Alert.alert("Success", "Bond request sent!");
+  } catch (err) {
+    console.error('❌ Error details:', {
+      message: err.message,
+      response: err.response?.data,
+      status: err.response?.status,
+      headers: err.response?.headers
     });
-
-    if (existingRequest) {
-      return res.status(400).json({ message: 'Request already sent' });
-    }
-
-    // Check if already bonded
-    const user = await User.findById(senderId);
-    if (user.bonds && user.bonds.includes(recipientId)) {
-      return res.status(400).json({ message: 'Already bonded with this user' });
-    }
-
-    const newRequest = new Request({
-      sender: senderId,
-      recipient: recipientId,
-      type: 'bond',
-      status: 'pending'
-    });
-
-    await newRequest.save();
-
-    // Get sender info for notification
-    const senderUser = await User.findById(senderId).select('name username');
-
-    // Create notification for recipient
-    await Notification.create({
-      user: recipientId,
-      type: 'bond_request',
-      message: `${senderUser.name || senderUser.username} sent you a bond request`,
-      sender: senderId
-    });
-
-    res.status(201).json({ 
-      success: true,
-      message: 'Bond request sent successfully',
-      request: newRequest
-    });
-  } catch (error) {
-    console.error('❌ Send bond request error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: error.message || 'Failed to send bond request'
-    });
+    
+    const errorMessage = err.response?.data?.message || err.message || "Failed to send bond request";
+    Alert.alert("Error", errorMessage);
+  } finally {
+    setRequestLoading(prev => ({ ...prev, [recipientId]: null }));
   }
 };
+// export const sendBondRequest = async (req, res) => {
+//      console.log('🎯 sendBondRequest called');
+//   console.log('📦 req.body:', req.body);
+//   console.log('👤 req.user:', req.user);
+//   try {
+//     const { recipientId } = req.body;
+//     const senderId = req.user._id;
+// console.log('✅ senderId:', senderId);
+//     console.log('✅ recipientId:', recipientId);
+//     // Validate recipientId
+//     if (!recipientId) {
+//       return res.status(400).json({ message: 'Recipient ID is required' });
+//     }
+
+//     // Check if trying to send request to self
+//     if (senderId.toString() === recipientId) {
+//       return res.status(400).json({ message: 'Cannot send request to yourself' });
+//     }
+
+    // Check if request already exists
+//     const existingRequest = await Request.findOne({
+//       sender: senderId,
+//       recipient: recipientId,
+//       type: 'bond',
+//       status: 'pending'
+//     });
+
+//     if (existingRequest) {
+//       return res.status(400).json({ message: 'Request already sent' });
+//     }
+
+//     // Check if already bonded
+//     const user = await User.findById(senderId);
+//     if (user.bonds && user.bonds.includes(recipientId)) {
+//       return res.status(400).json({ message: 'Already bonded with this user' });
+//     }
+
+//     const newRequest = new Request({
+//       sender: senderId,
+//       recipient: recipientId,
+//       type: 'bond',
+//       status: 'pending'
+//     });
+
+//     await newRequest.save();
+
+//     // Get sender info for notification
+//     const senderUser = await User.findById(senderId).select('name username');
+
+//     // Create notification for recipient
+//     await Notification.create({
+//       user: recipientId,
+//       type: 'bond_request',
+//       message: `${senderUser.name || senderUser.username} sent you a bond request`,
+//       sender: senderId
+//     });
+
+//     res.status(201).json({ 
+//       success: true,
+//       message: 'Bond request sent successfully',
+//       request: newRequest
+//     });
+//   } catch (error) {
+//     console.error('❌ Send bond request error:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message || 'Failed to send bond request'
+//     });
+//   }
+// };
 
 // Send special friend request
 export const sendSpecialFriendRequest = async (req, res) => {

@@ -1,6 +1,5 @@
 import express from 'express';
-
-import { protect } from '../MiddleWare/authMiddleware.js';  // Adjust path to your auth middleware
+import { protect } from '../MiddleWare/authMiddleware.js';
 import {
   sendBondRequest,
   sendSpecialFriendRequest,
