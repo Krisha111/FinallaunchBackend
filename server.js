@@ -336,7 +336,8 @@ io.on('connection', (socket) => {
   });
 
   // Accept invite from notification
-  socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
+  socket.on('accept_invite_from_notification',
+     ({ inviteId, from, to }) => {
     // Remove from pending invites
     const userInvites = pendingInvites.get(to) || [];
     const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
@@ -344,6 +345,14 @@ io.on('connection', (socket) => {
     if (inviteIndex !== -1) {
       userInvites.splice(inviteIndex, 1);
     }
+      // ✅ Send updated pending count immediately
+  const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
+  
+  // Find receiver's socket
+  const receiver = userssample[to];
+  if (receiver?.socketId) {
+    io.to(receiver.socketId).emit('pending_invites', remainingInvites);
+  }
 
     // Create room (same logic as accept_invite)
     const room = `${from}-${to}`;
@@ -386,17 +395,21 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Reject invite
-  socket.on('reject_invite', ({ inviteId, username }) => {
-    const userInvites = pendingInvites.get(username) || [];
-    const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
+  // Same for reject_invite
+socket.on('reject_invite', ({ inviteId, username }) => {
+  const userInvites = pendingInvites.get(username) || [];
+  const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
 
-    if (inviteIndex !== -1) {
-      userInvites.splice(inviteIndex, 1);
-      socket.emit('invite_rejected', { inviteId });
-      console.log(`❌ Invite ${inviteId} rejected by ${username}`);
-    }
-  });
+  if (inviteIndex !== -1) {
+    userInvites.splice(inviteIndex, 1);
+    console.log(`❌ Invite ${inviteId} rejected and removed`);
+    
+    // ✅ Send updated count
+    const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
+    socket.emit('pending_invites', remainingInvites);
+    socket.emit('invite_rejected', { inviteId });
+  }
+});
 
   // ✅ Regular accept_invite (from modal) - WITH PENDING INVITE CLEANUP
   socket.on('accept_invite', ({ from }) => {
