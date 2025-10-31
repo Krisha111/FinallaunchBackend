@@ -252,6 +252,8 @@ io.on('connection', (socket) => {
 
   socket.on('register', async ({ username, userId }) => {
     if (!username) return;
+    console.log(`✅ Registered: ${username} (${userId})`);
+  socket.join(userId); 
     socket.username = username;
     socket.userId = userId;
 

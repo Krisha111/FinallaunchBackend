@@ -79,6 +79,16 @@ export const sendBondRequest = async (req, res) => {
       message: `${senderUser.name || senderUser.username} sent you a bond request`,
       sender: senderId
     });
+    // ✅ ADD THESE LINES:
+const io = req.app.get('io'); // Get socket.io instance
+if (io) {
+  io.to(recipientId.toString()).emit('new_request', {
+    type: 'bond_request',
+    from: senderUser.name || senderUser.username,
+    senderId: senderId.toString(),
+    message: `${senderUser.name || senderUser.username} sent you a bond request`
+  });
+}
     console.log('✅ Notification created');
 
     console.log('✅ Bond request sent successfully');
@@ -224,6 +234,16 @@ export const sendSpecialFriendRequest = async (req, res) => {
       message: `${senderUser.name || senderUser.username} sent you a special friend request`,
       sender: senderId
     });
+    // ✅ ADD THESE LINES:
+const io = req.app.get('io');
+if (io) {
+  io.to(recipientId.toString()).emit('new_request', {
+    type: 'special_friend_request',
+    from: senderUser.name || senderUser.username,
+    senderId: senderId.toString(),
+    message: `${senderUser.name || senderUser.username} sent you a special friend request`
+  });
+}
 
     res.status(201).json({ 
       success: true,
