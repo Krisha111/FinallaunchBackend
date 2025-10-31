@@ -304,6 +304,7 @@ export const getSentRequests = async (req, res) => {
 };
 
 // Accept request
+// Accept request
 export const acceptRequest = async (req, res) => {
   try {
     const { requestId, type } = req.body;
@@ -342,6 +343,13 @@ export const acceptRequest = async (req, res) => {
         request.sender, 
         { $addToSet: { bonds: req.user._id } }
       );
+      
+      // ✅ ADD: Emit socket event to update UI
+      const io = req.app.get('io');
+      if (io) {
+        io.to(req.user._id.toString()).emit('bond_accepted', { userId: request.sender.toString() });
+        io.to(request.sender.toString()).emit('bond_accepted', { userId: req.user._id.toString() });
+      }
     } else if (type === 'special_friend') {
       await User.findByIdAndUpdate(
         req.user._id, 
@@ -351,6 +359,13 @@ export const acceptRequest = async (req, res) => {
         request.sender, 
         { $addToSet: { chosen: req.user._id } }
       );
+      
+      // ✅ ADD: Emit socket event to update UI
+      const io = req.app.get('io');
+      if (io) {
+        io.to(req.user._id.toString()).emit('chosen_accepted', { userId: request.sender.toString() });
+        io.to(request.sender.toString()).emit('chosen_accepted', { userId: req.user._id.toString() });
+      }
     }
 
     // Get accepter info for notification
