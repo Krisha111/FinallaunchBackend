@@ -4,10 +4,10 @@ import Notification from '../model/Notification.js';
 
 // Send bond request
 export const sendBondRequest = async (req, res) => {
-  console.log('\n🎯 ========== SEND BOND REQUEST ==========');
-  console.log('📦 req.body:', req.body);
-  console.log('👤 req.user:', req.user ? { id: req.user._id, username: req.user.username } : 'NO USER');
-  console.log('🔐 Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
+  // console.log('\n🎯 ========== SEND BOND REQUEST ==========');
+  // console.log('📦 req.body:', req.body);
+  // console.log('👤 req.user:', req.user ? { id: req.user._id, username: req.user.username } : 'NO USER');
+  // console.log('🔐 Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
   
   try {
     const { recipientId } = req.body;
@@ -211,12 +211,26 @@ if (io) {
 //  };
 export const sendSpecialFriendRequest = async (req, res) => {
   try {
-    const { recipientId } = req.body;
+    const { recipientId , image, caption} = req.body;
     const senderId = req.user._id;
 
     // Validate recipientId
     if (!recipientId) {
       return res.status(400).json({ message: 'Recipient ID is required' });
+    }
+     // Validate required fields
+    
+
+    if (!image) {
+      return res.status(400).json({ message: 'Image is required for special friend request' });
+    }
+
+    if (!caption || caption.trim().length === 0) {
+      return res.status(400).json({ message: 'Caption is required for special friend request' });
+    }
+
+    if (caption.length > 500) {
+      return res.status(400).json({ message: 'Caption must be 500 characters or less' });
     }
 
     // Check if trying to send request to self
@@ -247,7 +261,9 @@ export const sendSpecialFriendRequest = async (req, res) => {
       sender: senderId,
       recipient: recipientId,
       type: 'special_friend',
-      status: 'pending'
+      status: 'pending',
+      image: image,
+      caption: caption.trim()
     });
 
     await newRequest.save();
@@ -260,7 +276,8 @@ export const sendSpecialFriendRequest = async (req, res) => {
       user: recipientId,
       type: 'special_friend_request',
       message: `${senderUser.name || senderUser.username} sent you a special friend request`,
-      sender: senderId
+      sender: senderId,
+      requestId: newRequest._id // ✅ Store request ID in notification
     });
 
     // ✅ Emit socket event (real-time update)
@@ -292,6 +309,40 @@ export const sendSpecialFriendRequest = async (req, res) => {
     });
   }
 };
+
+// ✅ NEW: Get full request details (for viewing image and caption)
+export const getRequestDetails = async (req, res) => {
+  try {
+    const { requestId } = req.params;
+
+    const request = await Request.findById(requestId)
+      .populate('sender', 'name username profileImage')
+      .populate('recipient', 'name username profileImage');
+
+    if (!request) {
+      return res.status(404).json({ message: 'Request not found' });
+    }
+
+    // Verify user is either sender or recipient
+    const userId = req.user._id.toString();
+    if (request.sender._id.toString() !== userId && 
+        request.recipient._id.toString() !== userId) {
+      return res.status(403).json({ message: 'Not authorized to view this request' });
+    }
+
+    res.status(200).json({
+      success: true,
+      request
+    });
+  } catch (error) {
+    console.error('❌ Get request details error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch request details'
+    });
+  }
+};
+
 
 
 // Get pending requests

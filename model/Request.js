@@ -20,7 +20,18 @@ const requestSchema = new mongoose.Schema({
     type: String,
     enum: ['pending', 'accepted', 'rejected'],
     default: 'pending'
+  },
+    // ✅ NEW FIELDS for special_friend requests
+  image: {
+    type: String,
+    default: null // base64 or URL
+  },
+  caption: {
+    type: String,
+    default: null,
+    maxlength: 500
   }
+
 }, { 
   timestamps: true 
 });

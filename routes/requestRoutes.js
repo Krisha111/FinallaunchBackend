@@ -7,7 +7,8 @@ import {
   getSentRequests,
   acceptRequest,
   rejectRequest,
-  cancelRequest
+  cancelRequest,
+  getRequestDetails // ✅ NEW
 } from '../controller/requestController.js';
 
 const router = express.Router();
@@ -51,7 +52,9 @@ router.post('/accept', protect, acceptRequest);
  * @route   POST /api/requests/reject
  * @desc    Reject a request
  * @access  Private
+ * 
  */
+router.get('/:requestId', protect, getRequestDetails);
 router.post('/reject', protect, rejectRequest);
 
 /**
