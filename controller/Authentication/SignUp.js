@@ -51,7 +51,7 @@ export const signUpRouteUser = async (req, res) => {
     const token = jwt.sign(
       { id: newUser._id },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '36500d' }
     );
 
     // ✅ 7. Send back { user, token }

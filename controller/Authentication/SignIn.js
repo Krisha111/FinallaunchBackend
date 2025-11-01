@@ -23,7 +23,7 @@ export const signInRouteUser = async (req, res) => {
     const token = jwt.sign(
       { id: user._id, username: user.username, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '36500d' }// 100 years = essentially permanent
     );
 
      res.status(200).json({
@@ -32,6 +32,7 @@ export const signInRouteUser = async (req, res) => {
         username: user.username,
         email: user.email,
         _id: user._id,
+        profileImage: user.profileImage || "",
       },
       token, // ✅ Send back token
     });
