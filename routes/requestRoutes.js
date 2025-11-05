@@ -9,12 +9,15 @@ import {
   rejectRequest,
   cancelRequest,
   getRequestDetails // ✅ NEW
-  ,
+  ,unbond, unchose, 
   getReceivedAcceptedRequests, // ✅ ADD THIS
 } from '../controller/requestController.js';
 
 const router = express.Router();
 
+
+router.post('/unbond', verifyToken, unbond);
+router.post('/unchose', verifyToken, unchose);
 /**
  * @route   POST /api/requests/send-bond
  * @desc    Send bond request

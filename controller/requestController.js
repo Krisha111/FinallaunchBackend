@@ -2,6 +2,57 @@ import Request from '../model/Request.js';
 import User from '../model/User.js';
 import Notification from '../model/Notification.js';
 
+// Unbond
+export const unbond = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const currentUserId = req.user._id;
+
+    await User.findByIdAndUpdate(currentUserId, {
+      $pull: { bonds: userId }
+    });
+    
+    await User.findByIdAndUpdate(userId, {
+      $pull: { bonds: currentUserId }
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(currentUserId.toString()).emit('bond_accepted');
+      io.to(userId.toString()).emit('bond_accepted');
+    }
+
+    res.status(200).json({ success: true, message: 'Unbonded successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Unchose
+export const unchose = async (req, res) => {
+  try {
+    const { userId } = req.body;
+    const currentUserId = req.user._id;
+
+    await User.findByIdAndUpdate(currentUserId, {
+      $pull: { chosen: userId }
+    });
+    
+    await User.findByIdAndUpdate(userId, {
+      $pull: { chosen: currentUserId }
+    });
+
+    const io = req.app.get('io');
+    if (io) {
+      io.to(currentUserId.toString()).emit('chosen_accepted');
+      io.to(userId.toString()).emit('chosen_accepted');
+    }
+
+    res.status(200).json({ success: true, message: 'Unchosen successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 // Send bond request
 export const sendBondRequest = async (req, res) => {
 
