@@ -16,8 +16,8 @@ import {
 const router = express.Router();
 
 
-router.post('/unbond', verifyToken, unbond);
-router.post('/unchose', verifyToken, unchose);
+router.post('/unbond', protect, unbond);
+router.post('/unchose', protect, unchose);
 /**
  * @route   POST /api/requests/send-bond
  * @desc    Send bond request
