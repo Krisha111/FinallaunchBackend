@@ -317,7 +317,7 @@ io.on('connection', (socket) => {
 //     console.log(`📨 Sent invite notification to ${to}`);
 //   }
 // });
-import { v4 as uuidv4 } from "uuid"; // make sure at the top
+// make sure at the top
 
 socket.on("send_invite", ({ to, from }) => {
   const key = `${from}-${to}`;
