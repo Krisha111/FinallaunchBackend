@@ -11,7 +11,7 @@ import signUpRouteUser from './routes/Authentication/SignUp.js';
 import signInRouteUser from './routes/Authentication/signIn.js';
 import dotenv from 'dotenv';
 import path from 'path';
-import { v4 as uuidv4 } from "uuid"; // make sure at the top
+
 import requestRoutes from './routes/requestRoutes.js'
 import profileInformationRoutes from './routes/Profile/ProfileInformationRoute.js';
 import verifyToken from './MiddleWare/verifyToken.js';
@@ -300,55 +300,23 @@ io.on('connection', (socket) => {
   // ✅ NOTIFICATION SYSTEM
   // ================================
 
-// socket.on("send_invite", ({ to, from }) => {
-//   const inviteId = uuidv4();
-//   const timestamp = Date.now();
-  
-//   const invite = { id: inviteId, from, to, timestamp };
-//   invites.push(invite);
-  
-//   // ✅ Find recipient socket and emit
-//   const recipientSocket = Array.from(io.sockets.sockets.values()).find(
-//     s => s.username === to
-//   );
-  
-//   if (recipientSocket) {
-//     recipientSocket.emit("receive_invite", invite);
-//     console.log(`📨 Sent invite notification to ${to}`);
-//   }
-// });
-// make sure at the top
-
 socket.on("send_invite", ({ to, from }) => {
-  const key = `${from}-${to}`;
-  const now = Date.now();
-
-  // ✅ Prevent duplicate notification
-  if (sentInvites.has(key)) {
-    console.log(`⚠️ Duplicate invite ignored: ${key}`);
-    return;
-  }
-
   const inviteId = uuidv4();
-  const invite = { id: inviteId, from, to, timestamp: now };
-
-  // ✅ Save this invite to prevent repetition
-  sentInvites.add(key);
-
-  // ✅ Auto-clear this after 60 seconds so user can send again later
-  setTimeout(() => sentInvites.delete(key), 60 * 1000);
-
-  // ✅ Send only once
+  const timestamp = Date.now();
+  
+  const invite = { id: inviteId, from, to, timestamp };
+  invites.push(invite);
+  
+  // ✅ Find recipient socket and emit
   const recipientSocket = Array.from(io.sockets.sockets.values()).find(
-    (s) => s.username === to
+    s => s.username === to
   );
-
+  
   if (recipientSocket) {
     recipientSocket.emit("receive_invite", invite);
     console.log(`📨 Sent invite notification to ${to}`);
   }
 });
-
   // Get pending invites when user comes online
   socket.on('get_pending_invites', ({ username }) => {
     const invites = pendingInvites.get(username) || [];
