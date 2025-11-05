@@ -9,6 +9,8 @@ import {
   rejectRequest,
   cancelRequest,
   getRequestDetails // ✅ NEW
+  ,
+  getReceivedAcceptedRequests, // ✅ ADD THIS
 } from '../controller/requestController.js';
 
 const router = express.Router();
@@ -32,6 +34,7 @@ router.post('/send-special-friend', protect, sendSpecialFriendRequest);
  * @desc    Get pending requests (received)
  * @access  Private
  */
+router.get('/received-accepted', verifyToken, getReceivedAcceptedRequests); 
 router.get('/pending', protect, getPendingRequests);
 
 /**

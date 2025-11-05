@@ -4,10 +4,7 @@ import Notification from '../model/Notification.js';
 
 // Send bond request
 export const sendBondRequest = async (req, res) => {
-  // console.log('\n🎯 ========== SEND BOND REQUEST ==========');
-  // console.log('📦 req.body:', req.body);
-  // console.log('👤 req.user:', req.user ? { id: req.user._id, username: req.user.username } : 'NO USER');
-  // console.log('🔐 Authorization header:', req.headers.authorization ? 'Present' : 'Missing');
+
   
   try {
     const { recipientId } = req.body;
@@ -123,93 +120,6 @@ if (io) {
   }
 };
 
-// export const sendSpecialFriendRequest = async (req, res) => {
-//   try {
-//     const { recipientId } = req.body;
-//     const senderId = req.user._id;
-
-//     // Validate recipientId
-//     if (!recipientId) {
-//       return res.status(400).json({ message: 'Recipient ID is required' });
-//     }
-
-//     // Check if trying to send request to self
-//     if (senderId.toString() === recipientId) {
-//       return res.status(400).json({ message: 'Cannot send request to yourself' });
-//     }
-
-//     // Check if request already exists
-//     const existingRequest = await Request.findOne({
-//       sender: senderId,
-//       recipient: recipientId,
-//       type: 'special_friend',
-//       status: 'pending'
-//     });
-
-//     if (existingRequest) {
-//       return res.status(400).json({ message: 'Request already sent' });
-//     }
-
-//     // Check if already in chosen list
-//     const user = await User.findById(senderId);
-//     if (user.chosen && user.chosen.includes(recipientId)) {
-//       return res.status(400).json({ message: 'Already in special friends list' });
-//     }
-
-//     const newRequest = new Request({
-//       sender: senderId,
-//       recipient: recipientId,
-//       type: 'special_friend',
-//       status: 'pending'
-//     });
-
-//     await newRequest.save();
-
-//     // Get sender info for notification
-//     const senderUser = await User.findById(senderId).select('name username');
-
-//     // Create notification for recipient
-//     await Notification.create({
-//       user: recipientId,
-//       type: 'special_friend_request',
-//       message: `${senderUser.name || senderUser.username} sent you a special friend request`,
-//       sender: senderId
-//     });
-//     // ✅ ADD THESE LINES:
-// const io = req.app.get('io');
-// if (io) {
-//       const socketData = {
-//     type: 'special_friend_request',
-//     from: senderUser.name || senderUser.username,
-//     senderId: senderId.toString(),
-//     message: `${senderUser.name || senderUser.username} sent you a special friend request`,
-//     requestId: newRequest._id.toString() // ✅ ADD unique ID
-//   };
-  
-//   io.to(recipientId.toString()).emit('new_request', socketData);
-// }
-//   io.to(recipientId.toString()).emit('new_request', {
-//     type: 'special_friend_request',
-//     from: senderUser.name || senderUser.username,
-//     senderId: senderId.toString(),
-//     message: `${senderUser.name || senderUser.username} sent you a special friend request`
-//   });
-// }
-
-//     res.status(201).json({ 
-//       success: true,
-//       message: 'Special friend request sent successfully',
-//       request: newRequest
-//     });
-//   } catch (error) {
-//     console.error('❌ Send special friend request error:', error);
-//     res.status(500).json({ 
-//       success: false,
-//       message: error.message || 'Failed to send special friend request'
-//     });
-//   }
-//  };
-// ✅ UPDATED: Send special friend request with image and caption
 export const sendSpecialFriendRequest = async (req, res) => {
   console.log('\n🎯 ========== SEND SPECIAL FRIEND REQUEST ==========');
   console.log('📦 req.body keys:', Object.keys(req.body));
@@ -381,13 +291,39 @@ export const getPendingRequests = async (req, res) => {
 };
 
 // Get sent requests
+// export const getSentRequests = async (req, res) => {
+//   try {
+//     const requests = await Request.find({
+//       sender: req.user._id,
+//       status: 'pending'
+//     })
+//     .populate('recipient', 'name username profileImage')
+//     .sort({ createdAt: -1 });
+
+//     res.status(200).json({
+//       success: true,
+//       count: requests.length,
+//       requests
+//     });
+//   } catch (error) {
+//     console.error('❌ Get sent requests error:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message || 'Failed to fetch sent requests'
+//     });
+//   }
+// };
+// Get sent requests
+// Get sent requests
 export const getSentRequests = async (req, res) => {
   try {
     const requests = await Request.find({
       sender: req.user._id,
-      status: 'pending'
+      // ✅ REMOVE status filter to get ALL requests (pending, accepted, rejected)
+      // Or specifically: status: { $in: ['pending', 'accepted'] }
     })
     .populate('recipient', 'name username profileImage')
+    .select('recipient type status createdAt image caption') // ✅ Include image and caption
     .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -403,7 +339,31 @@ export const getSentRequests = async (req, res) => {
     });
   }
 };
+// ✅ NEW: Get received accepted requests
+export const getReceivedAcceptedRequests = async (req, res) => {
+  try {
+    const requests = await Request.find({
+      recipient: req.user._id,
+      status: 'accepted',
+      type: 'special_friend'
+    })
+    .populate('sender', 'name username profileImage')
+    .select('sender type status createdAt image caption') // ✅ Include image and caption
+    .sort({ createdAt: -1 });
 
+    res.status(200).json({
+      success: true,
+      count: requests.length,
+      requests
+    });
+  } catch (error) {
+    console.error('❌ Get received accepted requests error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: error.message || 'Failed to fetch requests'
+    });
+  }
+};
 // Accept request
 // Accept request
 // Accept request
