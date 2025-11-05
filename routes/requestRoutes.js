@@ -34,7 +34,7 @@ router.post('/send-special-friend', protect, sendSpecialFriendRequest);
  * @desc    Get pending requests (received)
  * @access  Private
  */
-router.get('/received-accepted', verifyToken, getReceivedAcceptedRequests); 
+router.get('/received-accepted', protect, getReceivedAcceptedRequests); 
 router.get('/pending', protect, getPendingRequests);
 
 /**
