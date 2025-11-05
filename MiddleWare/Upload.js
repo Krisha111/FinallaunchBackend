@@ -1,7 +1,6 @@
 // ================================
 // 📁 backend/MiddleWare/Upload.js
-// Multer configuration for file uploads
-// Supports both images and videos for reels
+// Multer configuration for file uploads (images/videos)
 // ================================
 
 import multer from 'multer';
@@ -30,15 +29,25 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     const timestamp = Date.now();
     const random = Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    const safeName = file.originalname
-      .replace(/\s+/g, '-')       // replace spaces with dashes
-      .replace(/[^\w\-\.]/g, ''); // remove unsafe chars
-    cb(null, `${timestamp}-${random}-${safeName}${ext}`);
+
+    // Get extension safely
+    const ext = path.extname(file.originalname) || '';
+
+    // Sanitize the original filename (without extension)
+    const baseName = path.basename(file.originalname, ext)
+      .replace(/\s+/g, '-')      // Replace spaces
+      .replace(/[^\w\-]/g, '');  // Remove special characters
+
+    // ✅ Create final filename
+    const finalName = `${timestamp}-${random}-${baseName}${ext}`;
+    cb(null, finalName);
   },
 });
 
 // ✅ Export configured multer instance
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB max (optional)
+});
 
 export default upload;

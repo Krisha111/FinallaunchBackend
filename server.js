@@ -11,6 +11,7 @@ import signUpRouteUser from './routes/Authentication/SignUp.js';
 import signInRouteUser from './routes/Authentication/signIn.js';
 import dotenv from 'dotenv';
 import path from 'path';
+import { v4 as uuidv4 } from "uuid"; // make sure at the top
 import requestRoutes from './routes/requestRoutes.js'
 import profileInformationRoutes from './routes/Profile/ProfileInformationRoute.js';
 import verifyToken from './MiddleWare/verifyToken.js';
@@ -240,6 +241,8 @@ let roomStates = {};
 
 // ✅ Pending invites - OUTSIDE connection handler (persists across connections)
 const pendingInvites = new Map();
+// ✅ Track already-sent invites to avoid duplicates
+const sentInvites = new Set(); // key = `${from}-${to}`
 
 // ✅ ALL socket.on() handlers MUST be INSIDE this io.on('connection') block
 io.on('connection', (socket) => {
@@ -297,39 +300,54 @@ io.on('connection', (socket) => {
   // ✅ NOTIFICATION SYSTEM
   // ================================
 
-  socket.on('send_invite', ({ to, from }) => {
-    const receiver = userssample[to];
-    const timestamp = Date.now();
-    const inviteData = {
-      from: from || socket.username,
-      to,
-      timestamp,
-      status: 'pending',
-      id: `invite_${timestamp}_${from}_${to}`,
-    };
+// socket.on("send_invite", ({ to, from }) => {
+//   const inviteId = uuidv4();
+//   const timestamp = Date.now();
+  
+//   const invite = { id: inviteId, from, to, timestamp };
+//   invites.push(invite);
+  
+//   // ✅ Find recipient socket and emit
+//   const recipientSocket = Array.from(io.sockets.sockets.values()).find(
+//     s => s.username === to
+//   );
+  
+//   if (recipientSocket) {
+//     recipientSocket.emit("receive_invite", invite);
+//     console.log(`📨 Sent invite notification to ${to}`);
+//   }
+// });
+import { v4 as uuidv4 } from "uuid"; // make sure at the top
 
-    // Store pending invite
-    if (!pendingInvites.has(to)) {
-      pendingInvites.set(to, []);
-    }
-    pendingInvites.get(to).push(inviteData);
+socket.on("send_invite", ({ to, from }) => {
+  const key = `${from}-${to}`;
+  const now = Date.now();
 
-    if (receiver?.socketId) {
-      // User is online - send real-time notification
-      io.to(receiver.socketId).emit('receive_invite', inviteData);
-      console.log(
-        `📨 Real-time invite sent from ${from || socket.username} to ${to}`
-      );
-    } else {
-      // User is offline - notification will be fetched when they come online
-      console.log(
-        `📭 Offline invite stored for ${to} from ${from || socket.username}`
-      );
-    }
+  // ✅ Prevent duplicate notification
+  if (sentInvites.has(key)) {
+    console.log(`⚠️ Duplicate invite ignored: ${key}`);
+    return;
+  }
 
-    // Send confirmation to sender
-    socket.emit('invite_sent', { success: true, to });
-  });
+  const inviteId = uuidv4();
+  const invite = { id: inviteId, from, to, timestamp: now };
+
+  // ✅ Save this invite to prevent repetition
+  sentInvites.add(key);
+
+  // ✅ Auto-clear this after 60 seconds so user can send again later
+  setTimeout(() => sentInvites.delete(key), 60 * 1000);
+
+  // ✅ Send only once
+  const recipientSocket = Array.from(io.sockets.sockets.values()).find(
+    (s) => s.username === to
+  );
+
+  if (recipientSocket) {
+    recipientSocket.emit("receive_invite", invite);
+    console.log(`📨 Sent invite notification to ${to}`);
+  }
+});
 
   // Get pending invites when user comes online
   socket.on('get_pending_invites', ({ username }) => {

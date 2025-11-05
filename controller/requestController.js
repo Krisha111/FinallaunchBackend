@@ -209,27 +209,45 @@ if (io) {
 //     });
 //   }
 //  };
+// ✅ UPDATED: Send special friend request with image and caption
 export const sendSpecialFriendRequest = async (req, res) => {
+  console.log('\n🎯 ========== SEND SPECIAL FRIEND REQUEST ==========');
+  console.log('📦 req.body keys:', Object.keys(req.body));
+  console.log('👤 req.user:', req.user ? { id: req.user._id, username: req.user.username } : 'NO USER');
+  
   try {
-    const { recipientId , image, caption} = req.body;
+    const { recipientId, image, caption } = req.body;
+    
+    // Check if user is authenticated
+    if (!req.user || !req.user._id) {
+      console.log('❌ User not authenticated');
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+    
     const senderId = req.user._id;
+    console.log('✅ senderId:', senderId);
+    console.log('✅ recipientId:', recipientId);
+    console.log('✅ caption length:', caption?.length || 0);
+    console.log('✅ image length:', image?.length || 0);
 
-    // Validate recipientId
+    // Validate required fields
     if (!recipientId) {
+      console.log('❌ Recipient ID is missing');
       return res.status(400).json({ message: 'Recipient ID is required' });
     }
-     // Validate required fields
-    
 
     if (!image) {
+      console.log('❌ Image is missing');
       return res.status(400).json({ message: 'Image is required for special friend request' });
     }
 
     if (!caption || caption.trim().length === 0) {
+      console.log('❌ Caption is missing or empty');
       return res.status(400).json({ message: 'Caption is required for special friend request' });
     }
 
     if (caption.length > 500) {
+      console.log('❌ Caption too long:', caption.length);
       return res.status(400).json({ message: 'Caption must be 500 characters or less' });
     }
 
@@ -256,7 +274,7 @@ export const sendSpecialFriendRequest = async (req, res) => {
       return res.status(400).json({ message: 'Already in special friends list' });
     }
 
-    // ✅ Create and save new request
+    // Create new request with image and caption
     const newRequest = new Request({
       sender: senderId,
       recipient: recipientId,
@@ -268,10 +286,8 @@ export const sendSpecialFriendRequest = async (req, res) => {
 
     await newRequest.save();
 
-    // ✅ Get sender info for notification
     const senderUser = await User.findById(senderId).select('name username');
 
-    // ✅ Create notification for recipient
     await Notification.create({
       user: recipientId,
       type: 'special_friend_request',
@@ -280,7 +296,6 @@ export const sendSpecialFriendRequest = async (req, res) => {
       requestId: newRequest._id // ✅ Store request ID in notification
     });
 
-    // ✅ Emit socket event (real-time update)
     const io = req.app.get('io');
     if (io) {
       const socketData = {
@@ -288,13 +303,12 @@ export const sendSpecialFriendRequest = async (req, res) => {
         from: senderUser.name || senderUser.username,
         senderId: senderId.toString(),
         message: `${senderUser.name || senderUser.username} sent you a special friend request`,
-        requestId: newRequest._id.toString() // unique ID
+        requestId: newRequest._id.toString()
       };
 
       io.to(recipientId.toString()).emit('new_request', socketData);
     }
 
-    // ✅ Response to client
     res.status(201).json({
       success: true,
       message: 'Special friend request sent successfully',
@@ -346,6 +360,7 @@ export const getRequestDetails = async (req, res) => {
 
 
 // Get pending requests
+// Get pending requests
 export const getPendingRequests = async (req, res) => {
   try {
     const requests = await Request.find({
@@ -391,6 +406,7 @@ export const getSentRequests = async (req, res) => {
 
 // Accept request
 // Accept request
+// Accept request
 export const acceptRequest = async (req, res) => {
   try {
     const { requestId, type } = req.body;
@@ -405,21 +421,17 @@ export const acceptRequest = async (req, res) => {
       return res.status(404).json({ message: 'Request not found' });
     }
 
-    // Verify the request is for the current user
     if (request.recipient.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to accept this request' });
     }
 
-    // Check if already accepted
     if (request.status === 'accepted') {
       return res.status(400).json({ message: 'Request already accepted' });
     }
 
-    // Update request status
     request.status = 'accepted';
     await request.save();
 
-    // Update user relationships based on type
     if (type === 'bond') {
       await User.findByIdAndUpdate(
         req.user._id, 
@@ -430,7 +442,6 @@ export const acceptRequest = async (req, res) => {
         { $addToSet: { bonds: req.user._id } }
       );
       
-      // ✅ ADD: Emit socket event to update UI
       const io = req.app.get('io');
       if (io) {
         io.to(req.user._id.toString()).emit('bond_accepted', { userId: request.sender.toString() });
@@ -446,7 +457,6 @@ export const acceptRequest = async (req, res) => {
         { $addToSet: { chosen: req.user._id } }
       );
       
-      // ✅ ADD: Emit socket event to update UI
       const io = req.app.get('io');
       if (io) {
         io.to(req.user._id.toString()).emit('chosen_accepted', { userId: request.sender.toString() });
@@ -454,10 +464,8 @@ export const acceptRequest = async (req, res) => {
       }
     }
 
-    // Get accepter info for notification
     const accepterUser = await User.findById(req.user._id).select('name username');
 
-    // Notify sender
     await Notification.create({
       user: request.sender,
       type: `${type}_accepted`,
@@ -531,12 +539,10 @@ export const cancelRequest = async (req, res) => {
       return res.status(404).json({ message: 'Request not found' });
     }
 
-    // Verify the request was sent by current user
     if (request.sender.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to cancel this request' });
     }
 
-    // Delete the request
     await Request.findByIdAndDelete(requestId);
 
     res.status(200).json({ 
