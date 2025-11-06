@@ -23,7 +23,35 @@ const router = express.Router();
 // ================================
 // ✅ Multer setup: Temporary folder for uploads
 // ================================
-const upload = multer({ dest: 'uploads/' }); // store files temporarily
+// const upload = multer({ dest: 'uploads/' }); // store files temporarily
+import { v2 as cloudinary } from 'cloudinary';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
+
+// configure cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// storage setup
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: async (req, file) => {
+    const folder = file.fieldname === 'poster' ? 'reel_posters' : 'reel_videos';
+    return {
+      folder,
+      resource_type: 'auto', // auto-detect video/image
+      allowed_formats: ['jpg', 'png', 'jpeg', 'mp4', 'mov'],
+      transformation:
+        file.fieldname === 'poster'
+          ? [{ width: 1080, height: 1920, crop: 'limit' }]
+          : [],
+    };
+  },
+});
+
+const upload = multer({ storage }); // ✅ now uploads go to Cloudinary
 
 // ================================
 // Routes
