@@ -11,6 +11,7 @@ import signUpRouteUser from './routes/Authentication/SignUp.js';
 import signInRouteUser from './routes/Authentication/signIn.js';
 import dotenv from 'dotenv';
 import path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 import requestRoutes from './routes/requestRoutes.js'
 import profileInformationRoutes from './routes/Profile/ProfileInformationRoute.js';
@@ -87,6 +88,8 @@ const allowedOrigins = [
   'https://finallaunchbackend.onrender.com',
   process.env.FRONTEND_URL,
 ].filter(Boolean);
+// ✅ Temporary in-memory store for invites
+const invites = [];
 
 app.use(
   cors({
@@ -300,23 +303,63 @@ io.on('connection', (socket) => {
   // ✅ NOTIFICATION SYSTEM
   // ================================
 
+// socket.on("send_invite", ({ to, from }) => {
+//   const inviteId = uuidv4();
+//   const timestamp = Date.now();
+  
+//   const invite = { id: inviteId, from, to, timestamp };
+//   invites.push(invite);
+  
+//   // ✅ Find recipient socket and emit
+//   const recipientSocket = Array.from(io.sockets.sockets.values()).find(
+//     s => s.username === to
+//   );
+  
+//   if (recipientSocket) {
+//     recipientSocket.emit("receive_invite", invite);
+//     console.log(`📨 Sent invite notification to ${to}`);
+//   }
+// });
 socket.on("send_invite", ({ to, from }) => {
-  const inviteId = uuidv4();
+  const inviteId = `${from}-${to}-${Date.now()}`; // Unique ID
   const timestamp = Date.now();
   
   const invite = { id: inviteId, from, to, timestamp };
-  invites.push(invite);
   
-  // ✅ Find recipient socket and emit
-  const recipientSocket = Array.from(io.sockets.sockets.values()).find(
-    s => s.username === to
-  );
-  
-  if (recipientSocket) {
-    recipientSocket.emit("receive_invite", invite);
-    console.log(`📨 Sent invite notification to ${to}`);
+  // ✅ Store in pending invites
+  if (!pendingInvites.has(to)) {
+    pendingInvites.set(to, []);
   }
+  pendingInvites.get(to).push({ ...invite, status: 'pending' });
+  
+  console.log(`📨 ${from} sent invite to ${to}`);
+  
+  // ✅ Find recipient's socket and emit
+  const recipientUser = userssample[to];
+  
+  if (recipientUser?.socketId) {
+    const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
+    
+    if (recipientSocket) {
+      // Emit to recipient
+      recipientSocket.emit("receive_invite", invite);
+      console.log(`✅ Invite notification sent to ${to}`);
+      
+      // Send updated pending invites count
+      const userInvites = pendingInvites.get(to) || [];
+      const pendingOnly = userInvites.filter((inv) => inv.status === 'pending');
+      recipientSocket.emit('pending_invites', pendingOnly);
+    } else {
+      console.log(`⚠️ Recipient ${to} socket not found`);
+    }
+  } else {
+    console.log(`⚠️ Recipient ${to} is offline`);
+  }
+  
+  // Confirm to sender
+  socket.emit('invite_sent', { to, success: true });
 });
+
   // Get pending invites when user comes online
   socket.on('get_pending_invites', ({ username }) => {
     const invites = pendingInvites.get(username) || [];
