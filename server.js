@@ -284,6 +284,58 @@ io.on('connection', (socket) => {
     console.log(`✅ Registered: ${username} (${socket.id})`);
     io.emit('active_users', Object.values(userssample));
   });
+  //------------------------------
+  socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
+  // Remove from pending invites
+  const userInvites = pendingInvites.get(to) || [];
+  const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
+
+  if (inviteIndex !== -1) {
+    userInvites.splice(inviteIndex, 1);
+  }
+
+  // ✅ Send updated pending count to the accepter
+  const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
+  socket.emit('pending_invites', remainingInvites);
+
+  // Create room (same logic as accept_invite)
+  const room = `${from}-${to}`;
+  socket.join(room);
+
+  const fromUser = userssample[from];
+  if (fromUser?.socketId) {
+    const fromSocket = io.sockets.sockets.get(fromUser.socketId);
+    if (fromSocket) {
+      fromSocket.join(room);
+
+      roomStates[room] = { currentIndex: 0, isPlaying: true };
+      admins[room] = from;
+      rooms[to] = room;
+      rooms[from] = room;
+
+      console.log(`✅ Room created from notification: ${room} | Admin: ${from}`);
+
+      io.to(fromUser.socketId).emit('invite_accepted', {
+        by: to,
+        from: from,
+        room,
+        isAdmin: true,
+        currentReelIndex: 0,
+      });
+
+      io.to(socket.id).emit('joined_room', {
+        room,
+        isAdmin: false,
+        currentReelIndex: 0,
+      });
+    }
+  } else {
+    socket.emit('invite_accept_failed', {
+      message: `${from} is currently offline`,
+    });
+  }
+});
+//----------------------------
 
   socket.on('send-notification', (data) => {
     const { receiverId } = data;
