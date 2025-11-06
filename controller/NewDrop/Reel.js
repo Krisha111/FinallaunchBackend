@@ -115,8 +115,12 @@ export const createReelPost = async (req, res) => {
     // const posterImage = posterFile
     //   ? `${BASE_URL}/uploads/${posterFile.filename}`
     //   : "";
-    const posterImage = posterFile?.path || "";
-const fileUrl = file.path; // ✅ Cloudinary returns .path as URL
+const posterFile = req.files?.poster ? req.files.poster[0] : null;
+const reelFiles = req.files?.reelFiles || [];
+
+const posterImage = posterFile?.path || "";
+const photoReelImages = reelFiles.map(file => file.path); // ✅ Cloudinary URL
+ // ✅ Cloudinary returns .path as URL
 
 
     // Build array and log each uploaded file (fix: logging inside loop)
