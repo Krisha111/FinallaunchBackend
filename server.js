@@ -50,10 +50,9 @@ mongoose
   .then(() => {
     console.log('✅ MongoDB connected successfully');
     console.log(
-      `📍 Connected to: ${
-        MONGODB_URI.includes('mongodb+srv')
-          ? 'MongoDB Atlas (Cloud)'
-          : 'Local MongoDB'
+      `📍 Connected to: ${MONGODB_URI.includes('mongodb+srv')
+        ? 'MongoDB Atlas (Cloud)'
+        : 'Local MongoDB'
       }`
     );
   })
@@ -259,7 +258,7 @@ io.on('connection', (socket) => {
   socket.on('register', async ({ username, userId }) => {
     if (!username) return;
     console.log(`✅ Registered: ${username} (${userId})`);
-  socket.join(userId); 
+    socket.join(userId);
     socket.username = username;
     socket.userId = userId;
 
@@ -285,7 +284,8 @@ io.on('connection', (socket) => {
     io.emit('active_users', Object.values(userssample));
   });
   //------------------------------
-  socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
+  // Accept invite from notification
+socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
   // Remove from pending invites
   const userInvites = pendingInvites.get(to) || [];
   const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
@@ -293,10 +293,15 @@ io.on('connection', (socket) => {
   if (inviteIndex !== -1) {
     userInvites.splice(inviteIndex, 1);
   }
-
-  // ✅ Send updated pending count to the accepter
+  
+  // ✅ Send updated pending count immediately
   const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
-  socket.emit('pending_invites', remainingInvites);
+  
+  // Find receiver's socket
+  const receiver = userssample[to];
+  if (receiver?.socketId) {
+    io.to(receiver.socketId).emit('pending_invites', remainingInvites);
+  }
 
   // Create room (same logic as accept_invite)
   const room = `${from}-${to}`;
@@ -330,12 +335,13 @@ io.on('connection', (socket) => {
       });
     }
   } else {
+    // Sender is offline
     socket.emit('invite_accept_failed', {
       message: `${from} is currently offline`,
     });
   }
 });
-//----------------------------
+  //----------------------------
 
   socket.on('send-notification', (data) => {
     const { receiverId } = data;
@@ -355,62 +361,62 @@ io.on('connection', (socket) => {
   // ✅ NOTIFICATION SYSTEM
   // ================================
 
-// socket.on("send_invite", ({ to, from }) => {
-//   const inviteId = uuidv4();
-//   const timestamp = Date.now();
-  
-//   const invite = { id: inviteId, from, to, timestamp };
-//   invites.push(invite);
-  
-//   // ✅ Find recipient socket and emit
-//   const recipientSocket = Array.from(io.sockets.sockets.values()).find(
-//     s => s.username === to
-//   );
-  
-//   if (recipientSocket) {
-//     recipientSocket.emit("receive_invite", invite);
-//     console.log(`📨 Sent invite notification to ${to}`);
-//   }
-// });
-socket.on("send_invite", ({ to, from }) => {
-  const inviteId = `${from}-${to}-${Date.now()}`; // Unique ID
-  const timestamp = Date.now();
-  
-  const invite = { id: inviteId, from, to, timestamp };
-  
-  // ✅ Store in pending invites
-  if (!pendingInvites.has(to)) {
-    pendingInvites.set(to, []);
-  }
-  pendingInvites.get(to).push({ ...invite, status: 'pending' });
-  
-  console.log(`📨 ${from} sent invite to ${to}`);
-  
-  // ✅ Find recipient's socket and emit
-  const recipientUser = userssample[to];
-  
-  if (recipientUser?.socketId) {
-    const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
-    
-    if (recipientSocket) {
-      // Emit to recipient
-      recipientSocket.emit("receive_invite", invite);
-      console.log(`✅ Invite notification sent to ${to}`);
-      
-      // Send updated pending invites count
-      const userInvites = pendingInvites.get(to) || [];
-      const pendingOnly = userInvites.filter((inv) => inv.status === 'pending');
-      recipientSocket.emit('pending_invites', pendingOnly);
-    } else {
-      console.log(`⚠️ Recipient ${to} socket not found`);
+  // socket.on("send_invite", ({ to, from }) => {
+  //   const inviteId = uuidv4();
+  //   const timestamp = Date.now();
+
+  //   const invite = { id: inviteId, from, to, timestamp };
+  //   invites.push(invite);
+
+  //   // ✅ Find recipient socket and emit
+  //   const recipientSocket = Array.from(io.sockets.sockets.values()).find(
+  //     s => s.username === to
+  //   );
+
+  //   if (recipientSocket) {
+  //     recipientSocket.emit("receive_invite", invite);
+  //     console.log(`📨 Sent invite notification to ${to}`);
+  //   }
+  // });
+  socket.on("send_invite", ({ to, from }) => {
+    const inviteId = `${from}-${to}-${Date.now()}`; // Unique ID
+    const timestamp = Date.now();
+
+    const invite = { id: inviteId, from, to, timestamp };
+
+    // ✅ Store in pending invites
+    if (!pendingInvites.has(to)) {
+      pendingInvites.set(to, []);
     }
-  } else {
-    console.log(`⚠️ Recipient ${to} is offline`);
-  }
-  
-  // Confirm to sender
-  socket.emit('invite_sent', { to, success: true });
-});
+    pendingInvites.get(to).push({ ...invite, status: 'pending' });
+
+    console.log(`📨 ${from} sent invite to ${to}`);
+
+    // ✅ Find recipient's socket and emit
+    const recipientUser = userssample[to];
+
+    if (recipientUser?.socketId) {
+      const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
+
+      if (recipientSocket) {
+        // Emit to recipient
+        recipientSocket.emit("receive_invite", invite);
+        console.log(`✅ Invite notification sent to ${to}`);
+
+        // Send updated pending invites count
+        const userInvites = pendingInvites.get(to) || [];
+        const pendingOnly = userInvites.filter((inv) => inv.status === 'pending');
+        recipientSocket.emit('pending_invites', pendingOnly);
+      } else {
+        console.log(`⚠️ Recipient ${to} socket not found`);
+      }
+    } else {
+      console.log(`⚠️ Recipient ${to} is offline`);
+    }
+
+    // Confirm to sender
+    socket.emit('invite_sent', { to, success: true });
+  });
 
   // Get pending invites when user comes online
   socket.on('get_pending_invites', ({ username }) => {
@@ -420,81 +426,24 @@ socket.on("send_invite", ({ to, from }) => {
     console.log(`📬 Sent ${pendingOnly.length} pending invites to ${username}`);
   });
 
-  // Accept invite from notification
-  socket.on('accept_invite_from_notification',
-     ({ inviteId, from, to }) => {
-    // Remove from pending invites
-    const userInvites = pendingInvites.get(to) || [];
+  
+  
+
+  // Same for reject_invite
+  socket.on('reject_invite', ({ inviteId, username }) => {
+    const userInvites = pendingInvites.get(username) || [];
     const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
 
     if (inviteIndex !== -1) {
       userInvites.splice(inviteIndex, 1);
-    }
-      // ✅ Send updated pending count immediately
-  const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
-  
-  // Find receiver's socket
-  const receiver = userssample[to];
-  if (receiver?.socketId) {
-    io.to(receiver.socketId).emit('pending_invites', remainingInvites);
-  }
+      console.log(`❌ Invite ${inviteId} rejected and removed`);
 
-    // Create room (same logic as accept_invite)
-    const room = `${from}-${to}`;
-    socket.join(room);
-
-    const fromUser = userssample[from];
-    if (fromUser?.socketId) {
-      const fromSocket = io.sockets.sockets.get(fromUser.socketId);
-      if (fromSocket) {
-        fromSocket.join(room);
-
-        roomStates[room] = { currentIndex: 0, isPlaying: true };
-        admins[room] = from;
-        rooms[to] = room;
-        rooms[from] = room;
-
-        console.log(
-          `✅ Room created from notification: ${room} | Admin: ${from}`
-        );
-
-        io.to(fromUser.socketId).emit('invite_accepted', {
-          by: to,
-          from: from,
-          room,
-          isAdmin: true,
-          currentReelIndex: 0,
-        });
-
-        io.to(socket.id).emit('joined_room', {
-          room,
-          isAdmin: false,
-          currentReelIndex: 0,
-        });
-      }
-    } else {
-      // Sender is offline
-      socket.emit('invite_accept_failed', {
-        message: `${from} is currently offline`,
-      });
+      // ✅ Send updated count
+      const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
+      socket.emit('pending_invites', remainingInvites);
+      socket.emit('invite_rejected', { inviteId });
     }
   });
-
-  // Same for reject_invite
-socket.on('reject_invite', ({ inviteId, username }) => {
-  const userInvites = pendingInvites.get(username) || [];
-  const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
-
-  if (inviteIndex !== -1) {
-    userInvites.splice(inviteIndex, 1);
-    console.log(`❌ Invite ${inviteId} rejected and removed`);
-    
-    // ✅ Send updated count
-    const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
-    socket.emit('pending_invites', remainingInvites);
-    socket.emit('invite_rejected', { inviteId });
-  }
-});
 
   // ✅ Regular accept_invite (from modal) - WITH PENDING INVITE CLEANUP
   socket.on('accept_invite', ({ from }) => {
@@ -687,11 +636,10 @@ app.get('/', (req, res) => {
         <div class="status">✅ Server Running</div>
         <div class="info">
           <p>Environment: ${process.env.NODE_ENV || 'development'}</p>
-          <p>MongoDB: ${
-            mongoose.connection.readyState === 1
-              ? '✅ Connected'
-              : '❌ Disconnected'
-          }</p>
+          <p>MongoDB: ${mongoose.connection.readyState === 1
+      ? '✅ Connected'
+      : '❌ Disconnected'
+    }</p>
           <p>Socket.IO: ✅ Active</p>
         </div>
       </div>
@@ -761,13 +709,11 @@ server.listen(PORT, HOST, () => {
   }
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(
-    `🔓 CORS: ${
-      isProduction ? 'Production (Mobile Friendly)' : 'Development (Allow All)'
+    `🔓 CORS: ${isProduction ? 'Production (Mobile Friendly)' : 'Development (Allow All)'
     }`
   );
   console.log(
-    `💾 MongoDB: ${
-      MONGODB_URI.includes('mongodb+srv') ? 'Atlas (Cloud)' : 'Local'
+    `💾 MongoDB: ${MONGODB_URI.includes('mongodb+srv') ? 'Atlas (Cloud)' : 'Local'
     }`
   );
   console.log(`🔌 Socket.IO: Active`);
