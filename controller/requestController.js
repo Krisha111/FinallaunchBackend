@@ -366,12 +366,38 @@ export const getPendingRequests = async (req, res) => {
 // };
 // Get sent requests
 // Get sent requests
+//------------------------------------------------------------
+// export const getSentRequests = async (req, res) => {
+//   try {
+//     const requests = await Request.find({
+//       sender: req.user._id,
+//       // ✅ REMOVE status filter to get ALL requests (pending, accepted, rejected)
+//       // Or specifically: status: { $in: ['pending', 'accepted'] }
+//     })
+//     .populate('recipient', 'name username profileImage')
+//     .select('recipient type status createdAt image caption') // ✅ Include image and caption
+//     .sort({ createdAt: -1 });
+
+//     res.status(200).json({
+//       success: true,
+//       count: requests.length,
+//       requests
+//     });
+//   } catch (error) {
+//     console.error('❌ Get sent requests error:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message || 'Failed to fetch sent requests'
+//     });
+//   }
+// };
+//--------------------------------------------------------
+// Get sent requests
 export const getSentRequests = async (req, res) => {
   try {
     const requests = await Request.find({
       sender: req.user._id,
-      // ✅ REMOVE status filter to get ALL requests (pending, accepted, rejected)
-      // Or specifically: status: { $in: ['pending', 'accepted'] }
+      // ✅ Get all requests, not just pending
     })
     .populate('recipient', 'name username profileImage')
     .select('recipient type status createdAt image caption') // ✅ Include image and caption
@@ -390,7 +416,7 @@ export const getSentRequests = async (req, res) => {
     });
   }
 };
-// ✅ NEW: Get received accepted requests
+// Get received accepted requests
 export const getReceivedAcceptedRequests = async (req, res) => {
   try {
     const requests = await Request.find({
@@ -399,7 +425,7 @@ export const getReceivedAcceptedRequests = async (req, res) => {
       type: 'special_friend'
     })
     .populate('sender', 'name username profileImage')
-    .select('sender type status createdAt image caption') // ✅ Include image and caption
+    .select('sender type status createdAt image caption')
     .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -415,6 +441,31 @@ export const getReceivedAcceptedRequests = async (req, res) => {
     });
   }
 };
+// ✅ NEW: Get received accepted requests
+// export const getReceivedAcceptedRequests = async (req, res) => {
+//   try {
+//     const requests = await Request.find({
+//       recipient: req.user._id,
+//       status: 'accepted',
+//       type: 'special_friend'
+//     })
+//     .populate('sender', 'name username profileImage')
+//     .select('sender type status createdAt image caption') // ✅ Include image and caption
+//     .sort({ createdAt: -1 });
+
+//     res.status(200).json({
+//       success: true,
+//       count: requests.length,
+//       requests
+//     });
+//   } catch (error) {
+//     console.error('❌ Get received accepted requests error:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message || 'Failed to fetch requests'
+//     });
+//   }
+// };
 // Accept request
 // Accept request
 // Accept request
