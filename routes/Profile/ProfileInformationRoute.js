@@ -4,7 +4,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import multer from "multer";
-
+import { upload as cloudinaryUpload } from "../../controller/Profile/ProfileInformationController.js";
 import {
   getProfile,
   updateProfile,
@@ -55,6 +55,5 @@ router.put("/:username", upload.single("profileImage"), updateProfile);
 router.delete("/:username", deleteProfile);
 
 // Update profile image directly (optional legacy route)
-router.put("/image", upload.single("image"), updateProfileImageById);
-
+router.put("/image", cloudinaryUpload.single("profileImage"), updateProfileImageById);
 export default router;

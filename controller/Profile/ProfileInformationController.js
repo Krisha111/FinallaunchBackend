@@ -118,22 +118,16 @@ export const removeBackground = async (req, res) => {
 // -------------------- Update Profile Image --------------------
 export const updateProfileImageById = async (req, res) => {
   try {
-    const userId = req.params.id || req.body.userId;
-
-    if (!userId) return res.status(400).json({ error: "Missing userId" });
-
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-    const imageUrl = req.file.path; // Cloudinary URL (already HTTPS)
-    console.log("🖼️ Profile Image URL (from Cloudinary):", imageUrl);
+    // ✅ Cloudinary URL is in req.file.path
+  imageUrl = req.file.path;
 
     const user = await User.findByIdAndUpdate(
-      userId,
+      req.params.id,
       { profileImage: imageUrl },
       { new: true }
     );
-
-    if (!user) return res.status(404).json({ error: "User not found" });
 
     res.json({ ...user.toObject(), profileImage: imageUrl });
   } catch (err) {
@@ -141,6 +135,7 @@ export const updateProfileImageById = async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
 
 
 // export const updateProfileImageById = async (req, res) => {
@@ -255,7 +250,7 @@ export const updateProfile = async (req, res) => {
 
     // ✅ Handle file upload
     if (req.file) {
-      imageUrl = getSecureUrl(`/uploads/${req.file.filename}`);
+        imageUrl = req.file.path;
       console.log("🖼️ New profile image uploaded:", imageUrl);
     } 
     // ✅ Convert any existing URL to HTTPS
