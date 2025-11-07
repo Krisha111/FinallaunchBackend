@@ -49,7 +49,7 @@ router.get("/byId/:id", getProfileById);
 router.get("/:username", getProfile);
 
 // Update profile (can include image via multipart/form-data)
-router.put("/:username", upload.single("profileImage"), updateProfile);
+router.put("/:username", cloudinaryUpload.single("profileImage"), updateProfile);
 
 // Delete profile
 router.delete("/:username", deleteProfile);
