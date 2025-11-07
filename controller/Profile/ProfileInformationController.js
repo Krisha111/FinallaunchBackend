@@ -7,6 +7,11 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import dotenv from 'dotenv';
+// At the top of ProfileController.js
+import { CloudinaryStorage } from "multer-storage-cloudinary";
+
+import cloudinary from "../../config/cloudinary.js"; // make sure this points to your cloudinary config file
+
 dotenv.config();
 
 // ✅ USE BASE_URL WITH HTTPS
@@ -27,17 +32,28 @@ const getSecureUrl = (pathOrUrl) => {
 };
 
 // -------------------- Multer Setup --------------------
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadPath = path.join(process.cwd(), "uploads");
-    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
-    cb(null, uploadPath);
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}_${file.originalname}`);
+// const storage = multer.diskStorage({
+//   destination: (req, file, cb) => {
+//     const uploadPath = path.join(process.cwd(), "uploads");
+//     if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
+//     cb(null, uploadPath);
+//   },
+//   filename: (req, file, cb) => {
+//     cb(null, `${Date.now()}_${file.originalname}`);
+//   },
+// });
+// export const upload = multer({ storage });
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "profile_images", // Cloudinary folder
+    format: async (req, file) => "png", // convert uploaded images to PNG
+    public_id: (req, file) => Date.now() + "_" + file.originalname,
   },
 });
+
 export const upload = multer({ storage });
+
 
 
 // ✅ Return list of "chosen" users
@@ -102,27 +118,14 @@ export const removeBackground = async (req, res) => {
 // -------------------- Update Profile Image --------------------
 export const updateProfileImageById = async (req, res) => {
   try {
-    let userId;
-    let imageUrl;
+    const userId = req.params.id || req.body.userId;
 
-    // 1️⃣ If image uploaded via Multer
-    if (req.file) {
-      userId = req.params.id || req.body.userId;
-      imageUrl = getSecureUrl(`/uploads/${req.file.filename}`);
-      console.log("🖼️ Profile Image URL (from file):", imageUrl);
-    } 
-    // 2️⃣ If frontend sends profileImage URL/base64
-    else if (req.body.profileImage && req.body.userId) {
-      userId = req.body.userId;
-      imageUrl = getSecureUrl(req.body.profileImage);
-      console.log("🖼️ Profile Image URL (from body):", imageUrl);
-    } else {
-      return res.status(400).json({ error: "Missing userId or profileImage" });
-    }
+    if (!userId) return res.status(400).json({ error: "Missing userId" });
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ error: "Invalid user ID" });
-    }
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+    const imageUrl = req.file.path; // Cloudinary URL (already HTTPS)
+    console.log("🖼️ Profile Image URL (from Cloudinary):", imageUrl);
 
     const user = await User.findByIdAndUpdate(
       userId,
@@ -132,15 +135,55 @@ export const updateProfileImageById = async (req, res) => {
 
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    console.log("✅ Profile image updated for user:", userId);
-    console.log("✅ Saved to DB:", imageUrl);
-    
     res.json({ ...user.toObject(), profileImage: imageUrl });
   } catch (err) {
-    console.error("Error updating profile image:", err);
+    console.error(err);
     res.status(500).json({ error: "Internal server error" });
   }
 };
+
+
+// export const updateProfileImageById = async (req, res) => {
+//   try {
+//     let userId;
+//     let imageUrl;
+
+//     // 1️⃣ If image uploaded via Multer
+//     if (req.file) {
+//       userId = req.params.id || req.body.userId;
+//       imageUrl = getSecureUrl(`/uploads/${req.file.filename}`);
+//       console.log("🖼️ Profile Image URL (from file):", imageUrl);
+//     } 
+//     // 2️⃣ If frontend sends profileImage URL/base64
+//     else if (req.body.profileImage && req.body.userId) {
+//       userId = req.body.userId;
+//       imageUrl = getSecureUrl(req.body.profileImage);
+//       console.log("🖼️ Profile Image URL (from body):", imageUrl);
+//     } else {
+//       return res.status(400).json({ error: "Missing userId or profileImage" });
+//     }
+
+//     if (!mongoose.Types.ObjectId.isValid(userId)) {
+//       return res.status(400).json({ error: "Invalid user ID" });
+//     }
+
+//     const user = await User.findByIdAndUpdate(
+//       userId,
+//       { profileImage: imageUrl },
+//       { new: true }
+//     );
+
+//     if (!user) return res.status(404).json({ error: "User not found" });
+
+//     console.log("✅ Profile image updated for user:", userId);
+//     console.log("✅ Saved to DB:", imageUrl);
+    
+//     res.json({ ...user.toObject(), profileImage: imageUrl });
+//   } catch (err) {
+//     console.error("Error updating profile image:", err);
+//     res.status(500).json({ error: "Internal server error" });
+//   }
+// };
 
 // -------------------- Get Profile --------------------
 export const getProfile = async (req, res) => {
