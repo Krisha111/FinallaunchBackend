@@ -245,7 +245,7 @@ let roomStates = {};
 const pendingInvites = new Map();
 // ✅ Track already-sent invites to avoid duplicates
 const sentInvites = new Set(); // key = `${from}-${to}`
-
+const userSockets = new Map();
 // ✅ ALL socket.on() handlers MUST be INSIDE this io.on('connection') block
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
@@ -264,6 +264,10 @@ io.on('connection', (socket) => {
 
     let profileImage = '';
     let bio = '';
+     // Store user's socket connection
+    userSockets.set(userId.toString(), socket.id);
+      // Join user's personal room
+    socket.join(userId.toString());
     try {
       const user = await User.findOne({ username });
       if (user?.profileImage) profileImage = user.profileImage;
@@ -540,6 +544,14 @@ socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
   });
 
   socket.on('disconnect', () => {
+     // Remove user from map on disconnect
+    for (const [userId, socketId] of userSockets.entries()) {
+      if (socketId === socket.id) {
+        userSockets.delete(userId);
+        console.log(`🔴 User ${userId} disconnected`);
+        break;
+      }
+    }
     console.log(
       `🔴 Client disconnected: ${socket.id} (${socket.username || 'Unknown'})`
     );
