@@ -141,6 +141,7 @@ app.use((req, res, next) => {
 // ✅ HTTP + Socket.IO Server (Production Ready)
 // ================================
 const server = http.createServer(app);
+const inviteTimers = new Map();
 const io = new Server(server, {
   cors: {
     origin: function (origin, callback) {
@@ -264,9 +265,9 @@ io.on('connection', (socket) => {
 
     let profileImage = '';
     let bio = '';
-     // Store user's socket connection
+    // Store user's socket connection
     userSockets.set(userId.toString(), socket.id);
-      // Join user's personal room
+    // Join user's personal room
     socket.join(userId.toString());
     try {
       const user = await User.findOne({ username });
@@ -289,62 +290,68 @@ io.on('connection', (socket) => {
   });
   //------------------------------
   // Accept invite from notification
-socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
-  // Remove from pending invites
-  const userInvites = pendingInvites.get(to) || [];
-  const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
+  socket.on('accept_invite_from_notification',
+    ({ inviteId, from, to }) => {
+      if (inviteTimers.has(inviteId)) {
+        clearTimeout(inviteTimers.get(inviteId));
+        inviteTimers.delete(inviteId);
+      }
+      // Remove from pending invites
+      const userInvites = pendingInvites.get(to) || [];
+      const inviteIndex = userInvites.findIndex((inv) =>
+        inv.id === inviteId);
 
-  if (inviteIndex !== -1) {
-    userInvites.splice(inviteIndex, 1);
-  }
-  
-  // ✅ Send updated pending count immediately
-  const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
-  
-  // Find receiver's socket
-  const receiver = userssample[to];
-  if (receiver?.socketId) {
-    io.to(receiver.socketId).emit('pending_invites', remainingInvites);
-  }
+      if (inviteIndex !== -1) {
+        userInvites.splice(inviteIndex, 1);
+      }
 
-  // Create room (same logic as accept_invite)
-  const room = `${from}-${to}`;
-  socket.join(room);
+      // ✅ Send updated pending count immediately
+      const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
 
-  const fromUser = userssample[from];
-  if (fromUser?.socketId) {
-    const fromSocket = io.sockets.sockets.get(fromUser.socketId);
-    if (fromSocket) {
-      fromSocket.join(room);
+      // Find receiver's socket
+      const receiver = userssample[to];
+      if (receiver?.socketId) {
+        io.to(receiver.socketId).emit('pending_invites', remainingInvites);
+      }
 
-      roomStates[room] = { currentIndex: 0, isPlaying: true };
-      admins[room] = from;
-      rooms[to] = room;
-      rooms[from] = room;
+      // Create room (same logic as accept_invite)
+      const room = `${from}-${to}`;
+      socket.join(room);
 
-      console.log(`✅ Room created from notification: ${room} | Admin: ${from}`);
+      const fromUser = userssample[from];
+      if (fromUser?.socketId) {
+        const fromSocket = io.sockets.sockets.get(fromUser.socketId);
+        if (fromSocket) {
+          fromSocket.join(room);
 
-      io.to(fromUser.socketId).emit('invite_accepted', {
-        by: to,
-        from: from,
-        room,
-        isAdmin: true,
-        currentReelIndex: 0,
-      });
+          roomStates[room] = { currentIndex: 0, isPlaying: true };
+          admins[room] = from;
+          rooms[to] = room;
+          rooms[from] = room;
 
-      io.to(socket.id).emit('joined_room', {
-        room,
-        isAdmin: false,
-        currentReelIndex: 0,
-      });
-    }
-  } else {
-    // Sender is offline
-    socket.emit('invite_accept_failed', {
-      message: `${from} is currently offline`,
+          console.log(`✅ Room created from notification: ${room} | Admin: ${from}`);
+
+          io.to(fromUser.socketId).emit('invite_accepted', {
+            by: to,
+            from: from,
+            room,
+            isAdmin: true,
+            currentReelIndex: 0,
+          });
+
+          io.to(socket.id).emit('joined_room', {
+            room,
+            isAdmin: false,
+            currentReelIndex: 0,
+          });
+        }
+      } else {
+        // Sender is offline
+        socket.emit('invite_accept_failed', {
+          message: `${from} is currently offline`,
+        });
+      }
     });
-  }
-});
   //----------------------------
 
   socket.on('send-notification', (data) => {
@@ -364,63 +371,115 @@ socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
   // ================================
   // ✅ NOTIFICATION SYSTEM
   // ================================
+// REPLACE your existing send_invite handler with this:
+socket.on("send_invite", ({ to, from }) => {
+  const inviteId = `${from}-${to}-${Date.now()}`;
+  const timestamp = Date.now();
+
+  const invite = { id: inviteId, from, to, timestamp, status: 'pending' };
+
+  // Store in pending invites
+  if (!pendingInvites.has(to)) {
+    pendingInvites.set(to, []);
+  }
+  pendingInvites.get(to).push(invite);
+
+  console.log(`📨 ${from} sent invite to ${to}`);
+
+  // Find recipient's socket and emit
+  const recipientUser = userssample[to];
+  if (recipientUser?.socketId) {
+    const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
+    if (recipientSocket) {
+      recipientSocket.emit("receive_invite", invite);
+      const userInvites = pendingInvites.get(to) || [];
+      const pendingOnly = userInvites.filter((inv) => inv.status === 'pending');
+      recipientSocket.emit('pending_invites', pendingOnly);
+    }
+  }
+
+  // ✅ SET 1 MINUTE EXPIRATION TIMER
+  const timer = setTimeout(() => {
+    console.log(`⏰ Invite ${inviteId} expired after 1 minute`);
+    
+    // Update invite status to expired
+    const userInvites = pendingInvites.get(to) || [];
+    const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
+    
+    if (inviteIndex !== -1 && userInvites[inviteIndex].status === 'pending') {
+      userInvites[inviteIndex].status = 'expired';
+      
+      // Notify recipient that invite expired
+      const recipientUser = userssample[to];
+      if (recipientUser?.socketId) {
+        const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
+        if (recipientSocket) {
+          recipientSocket.emit('invite_expired', { inviteId, from });
+          const pendingOnly = userInvites.filter((inv) => inv.status === 'pending');
+          recipientSocket.emit('pending_invites', pendingOnly);
+        }
+      }
+      
+      // Notify sender that invite expired
+      const senderUser = userssample[from];
+      if (senderUser?.socketId) {
+        const senderSocket = io.sockets.sockets.get(senderUser.socketId);
+        if (senderSocket) {
+          senderSocket.emit('invite_expired_sender', { to });
+        }
+      }
+    }
+    
+    inviteTimers.delete(inviteId);
+  }, 60000); // 60 seconds = 1 minute
+
+  inviteTimers.set(inviteId, timer);
+  socket.emit('invite_sent', { to, success: true });
+});
+
+
 
   // socket.on("send_invite", ({ to, from }) => {
-  //   const inviteId = uuidv4();
+  //   const inviteId = `${from}-${to}-${Date.now()}`; // Unique ID
   //   const timestamp = Date.now();
 
-  //   const invite = { id: inviteId, from, to, timestamp };
-  //   invites.push(invite);
+  //   const invite = { id: inviteId, from, to, timestamp, status: 'pending' };
 
-  //   // ✅ Find recipient socket and emit
-  //   const recipientSocket = Array.from(io.sockets.sockets.values()).find(
-  //     s => s.username === to
-  //   );
-
-  //   if (recipientSocket) {
-  //     recipientSocket.emit("receive_invite", invite);
-  //     console.log(`📨 Sent invite notification to ${to}`);
+  //   // ✅ Store in pending invites
+  //   if (!pendingInvites.has(to)) {
+  //     pendingInvites.set(to, []);
   //   }
+  //   pendingInvites.get(to).push(invite);
+  //   // pendingInvites.get(to).push({ ...invite, status: 'pending' });
+
+  //   console.log(`📨 ${from} sent invite to ${to}`);
+
+  //   // ✅ Find recipient's socket and emit
+  //   const recipientUser = userssample[to];
+
+  //   if (recipientUser?.socketId) {
+  //     const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
+
+  //     if (recipientSocket) {
+  //       // Emit to recipient
+  //       recipientSocket.emit("receive_invite", invite);
+  //       console.log(`✅ Invite notification sent to ${to}`);
+
+  //       // Send updated pending invites count
+  //       const userInvites = pendingInvites.get(to) || [];
+  //       const pendingOnly = userInvites.filter((inv) =>
+  //         inv.status === 'pending');
+  //       recipientSocket.emit('pending_invites', pendingOnly);
+  //     } else {
+  //       console.log(`⚠️ Recipient ${to} socket not found`);
+  //     }
+  //   } else {
+  //     console.log(`⚠️ Recipient ${to} is offline`);
+  //   }
+
+  //   // Confirm to sender
+  //   socket.emit('invite_sent', { to, success: true });
   // });
-  socket.on("send_invite", ({ to, from }) => {
-    const inviteId = `${from}-${to}-${Date.now()}`; // Unique ID
-    const timestamp = Date.now();
-
-    const invite = { id: inviteId, from, to, timestamp };
-
-    // ✅ Store in pending invites
-    if (!pendingInvites.has(to)) {
-      pendingInvites.set(to, []);
-    }
-    pendingInvites.get(to).push({ ...invite, status: 'pending' });
-
-    console.log(`📨 ${from} sent invite to ${to}`);
-
-    // ✅ Find recipient's socket and emit
-    const recipientUser = userssample[to];
-
-    if (recipientUser?.socketId) {
-      const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
-
-      if (recipientSocket) {
-        // Emit to recipient
-        recipientSocket.emit("receive_invite", invite);
-        console.log(`✅ Invite notification sent to ${to}`);
-
-        // Send updated pending invites count
-        const userInvites = pendingInvites.get(to) || [];
-        const pendingOnly = userInvites.filter((inv) => inv.status === 'pending');
-        recipientSocket.emit('pending_invites', pendingOnly);
-      } else {
-        console.log(`⚠️ Recipient ${to} socket not found`);
-      }
-    } else {
-      console.log(`⚠️ Recipient ${to} is offline`);
-    }
-
-    // Confirm to sender
-    socket.emit('invite_sent', { to, success: true });
-  });
 
   // Get pending invites when user comes online
   socket.on('get_pending_invites', ({ username }) => {
@@ -430,14 +489,17 @@ socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
     console.log(`📬 Sent ${pendingOnly.length} pending invites to ${username}`);
   });
 
-  
-  
+
+
 
   // Same for reject_invite
   socket.on('reject_invite', ({ inviteId, username }) => {
     const userInvites = pendingInvites.get(username) || [];
     const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
-
+    if (inviteTimers.has(inviteId)) {
+      clearTimeout(inviteTimers.get(inviteId));
+      inviteTimers.delete(inviteId);
+    }
     if (inviteIndex !== -1) {
       userInvites.splice(inviteIndex, 1);
       console.log(`❌ Invite ${inviteId} rejected and removed`);
@@ -544,7 +606,7 @@ socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
   });
 
   socket.on('disconnect', () => {
-     // Remove user from map on disconnect
+    // Remove user from map on disconnect
     for (const [userId, socketId] of userSockets.entries()) {
       if (socketId === socket.id) {
         userSockets.delete(userId);
