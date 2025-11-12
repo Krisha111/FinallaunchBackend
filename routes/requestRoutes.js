@@ -16,8 +16,8 @@ import {
 } from '../controller/requestController.js';
 
 const router = express.Router();
-router.post('/like', verifyToken, sendLikeNotification);
-router.post('/comment', verifyToken, sendCommentNotification);
+router.post('/like', protect, sendLikeNotification);
+router.post('/comment', protect, sendCommentNotification);
 
 router.post('/unbond', protect, unbond);
 router.post('/unchose', protect, unchose);
