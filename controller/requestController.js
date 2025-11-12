@@ -2,6 +2,87 @@ import Request from '../model/Request.js';
 import User from '../model/User.js';
 import Notification from '../model/Notification.js';
 
+// backend/controllers/notificationController.js or add to existing controller
+
+// Send like notification
+export const sendLikeNotification = async (req, res) => {
+  try {
+    const { postId, postOwnerId } = req.body;
+    const likerId = req.user._id;
+    
+    // Don't send notification if user likes their own post
+    if (likerId.toString() === postOwnerId.toString()) {
+      return res.status(200).json({ message: 'Self-like, no notification sent' });
+    }
+    
+    const liker = await User.findById(likerId).select('name username');
+    
+    // Create notification
+    await Notification.create({
+      user: postOwnerId,
+      type: 'post_like',
+      message: `${liker.name || liker.username} liked your post`,
+      sender: likerId,
+      postId: postId
+    });
+    
+    // Emit socket event
+    const io = req.app.get('io');
+    if (io) {
+      io.to(postOwnerId.toString()).emit('new_notification', {
+        type: 'post_like',
+        from: liker.name || liker.username,
+        senderId: likerId.toString(),
+        message: `${liker.name || liker.username} liked your post`,
+        postId: postId
+      });
+    }
+    
+    res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Send comment notification
+export const sendCommentNotification = async (req, res) => {
+  try {
+    const { postId, postOwnerId, commentText } = req.body;
+    const commenterId = req.user._id;
+    
+    // Don't send notification if user comments on their own post
+    if (commenterId.toString() === postOwnerId.toString()) {
+      return res.status(200).json({ message: 'Self-comment, no notification sent' });
+    }
+    
+    const commenter = await User.findById(commenterId).select('name username');
+    
+    // Create notification
+    await Notification.create({
+      user: postOwnerId,
+      type: 'post_comment',
+      message: `${commenter.name || commenter.username} commented on your post`,
+      sender: commenterId,
+      postId: postId
+    });
+    
+    // Emit socket event
+    const io = req.app.get('io');
+    if (io) {
+      io.to(postOwnerId.toString()).emit('new_notification', {
+        type: 'post_comment',
+        from: commenter.name || commenter.username,
+        senderId: commenterId.toString(),
+        message: `${commenter.name || commenter.username} commented: ${commentText.substring(0, 50)}...`,
+        postId: postId
+      });
+    }
+    
+    res.status(200).json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 // Unbond
 export const unbond = async (req, res) => {
   try {
@@ -341,134 +422,6 @@ export const getPendingRequests = async (req, res) => {
   }
 };
 
-// Get sent requests
-// export const getSentRequests = async (req, res) => {
-//   try {
-//     const requests = await Request.find({
-//       sender: req.user._id,
-//       status: 'pending'
-//     })
-//     .populate('recipient', 'name username profileImage')
-//     .sort({ createdAt: -1 });
-
-//     res.status(200).json({
-//       success: true,
-//       count: requests.length,
-//       requests
-//     });
-//   } catch (error) {
-//     console.error('❌ Get sent requests error:', error);
-//     res.status(500).json({ 
-//       success: false,
-//       message: error.message || 'Failed to fetch sent requests'
-//     });
-//   }
-// };
-// Get sent requests
-// Get sent requests
-//------------------------------------------------------------
-// export const getSentRequests = async (req, res) => {
-//   try {
-//     const requests = await Request.find({
-//       sender: req.user._id,
-//       // ✅ REMOVE status filter to get ALL requests (pending, accepted, rejected)
-//       // Or specifically: status: { $in: ['pending', 'accepted'] }
-//     })
-//     .populate('recipient', 'name username profileImage')
-//     .select('recipient type status createdAt image caption') // ✅ Include image and caption
-//     .sort({ createdAt: -1 });
-
-//     res.status(200).json({
-//       success: true,
-//       count: requests.length,
-//       requests
-//     });
-//   } catch (error) {
-//     console.error('❌ Get sent requests error:', error);
-//     res.status(500).json({ 
-//       success: false,
-//       message: error.message || 'Failed to fetch sent requests'
-//     });
-//   }
-// };
-//--------------------------------------------------------
-// Get sent requests
-export const getSentRequests = async (req, res) => {
-  try {
-    const requests = await Request.find({
-      sender: req.user._id,
-      // ✅ Get all requests, not just pending
-    })
-    .populate('recipient', 'name username profileImage')
-    .select('recipient type status createdAt image caption') // ✅ Include image and caption
-    .sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: requests.length,
-      requests
-    });
-  } catch (error) {
-    console.error('❌ Get sent requests error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: error.message || 'Failed to fetch sent requests'
-    });
-  }
-};
-// Get received accepted requests
-export const getReceivedAcceptedRequests = async (req, res) => {
-  try {
-    const requests = await Request.find({
-      recipient: req.user._id,
-      status: 'accepted',
-      type: 'special_friend'
-    })
-    .populate('sender', 'name username profileImage')
-    .select('sender type status createdAt image caption')
-    .sort({ createdAt: -1 });
-
-    res.status(200).json({
-      success: true,
-      count: requests.length,
-      requests
-    });
-  } catch (error) {
-    console.error('❌ Get received accepted requests error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: error.message || 'Failed to fetch requests'
-    });
-  }
-};
-// ✅ NEW: Get received accepted requests
-// export const getReceivedAcceptedRequests = async (req, res) => {
-//   try {
-//     const requests = await Request.find({
-//       recipient: req.user._id,
-//       status: 'accepted',
-//       type: 'special_friend'
-//     })
-//     .populate('sender', 'name username profileImage')
-//     .select('sender type status createdAt image caption') // ✅ Include image and caption
-//     .sort({ createdAt: -1 });
-
-//     res.status(200).json({
-//       success: true,
-//       count: requests.length,
-//       requests
-//     });
-//   } catch (error) {
-//     console.error('❌ Get received accepted requests error:', error);
-//     res.status(500).json({ 
-//       success: false,
-//       message: error.message || 'Failed to fetch requests'
-//     });
-//   }
-// };
-// Accept request
-// Accept request
-// Accept request
 export const acceptRequest = async (req, res) => {
   try {
     const { requestId, type } = req.body;
