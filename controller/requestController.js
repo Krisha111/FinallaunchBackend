@@ -109,6 +109,31 @@ export const getReceivedAcceptedRequests = async (req, res) => {
     });
   }
 };
+// Add this to backend/controller/requestController.js
+
+export const getSentRequests = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Find all requests sent by the current user
+    const sentRequests = await Request.find({
+      sender: userId
+    })
+      .populate('recipient', 'name username profileImage')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      requests: sentRequests
+    });
+  } catch (error) {
+    console.error('❌ Get sent requests error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch sent requests'
+    });
+  }
+};
 // Unbond
 export const unbond = async (req, res) => {
   try {

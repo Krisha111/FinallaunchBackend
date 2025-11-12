@@ -4,7 +4,7 @@ import {
   sendBondRequest,
   sendSpecialFriendRequest,
   getPendingRequests,
-  // getSentRequests,
+  getSentRequests,
   acceptRequest,
   rejectRequest,
   cancelRequest,
@@ -48,7 +48,7 @@ router.get('/pending', protect, getPendingRequests);
  * @desc    Get sent requests
  * @access  Private
  */
-// router.get('/sent', protect, getSentRequests);
+router.get('/sent', protect, getSentRequests);
 
 /**
  * @route   POST /api/requests/accept
