@@ -83,6 +83,32 @@ export const sendCommentNotification = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+// Add this to your backend/controller/requestController.js
+
+export const getReceivedAcceptedRequests = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Find all accepted requests where user is the recipient
+    const acceptedRequests = await Request.find({
+      recipient: userId,
+      status: 'accepted'
+    })
+      .populate('sender', 'name username profileImage')
+      .sort({ updatedAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      requests: acceptedRequests
+    });
+  } catch (error) {
+    console.error('❌ Get received accepted requests error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch accepted requests'
+    });
+  }
+};
 // Unbond
 export const unbond = async (req, res) => {
   try {
