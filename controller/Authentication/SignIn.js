@@ -1,6 +1,6 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import User from '../../model/User.js';
+import User from '../../model/User';
 
 export const signInRouteUser = async (req, res) => {
   const { username, email, password } = req.body;
