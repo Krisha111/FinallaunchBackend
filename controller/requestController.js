@@ -7,7 +7,7 @@ import Notification from '../model/Notification.js';
 // backend/controllers/notificationController.js
 // ✅ VERIFIED - Complete notification handlers with proper socket emission
 
-import User from '../model/User.js';
+
 import Notification from '../model/Notification.js';
 
 // ✅ Send like notification
