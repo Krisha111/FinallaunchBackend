@@ -13,7 +13,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-import notificationRoutes from './routes/notificationRoutes.js';
+import notificationRoutes from './routes/requestRoutes.js';
 import requestRoutes from './routes/requestRoutes.js';
 import profileInformationRoutes from './routes/Profile/ProfileInformationRoute.js';
 import verifyToken from './MiddleWare/verifyToken.js';
