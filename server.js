@@ -290,23 +290,25 @@ socket.on('ice_candidate', ({ room, candidate, from }) => {
   socket.to(room).emit('ice_candidate', { candidate, from });
 });
 // ✅ ADD THIS NEW HANDLER:
-socket.on('cancel_invite', ({ inviteId, to, from }) => {
+socket.on('cancel_invite', ({ to, from }) => {
   console.log(`❌ ${from} cancelled invite to ${to}`);
   
-  // Clear timer
-  if (inviteTimers.has(inviteId)) {
-    clearTimeout(inviteTimers.get(inviteId));
-    inviteTimers.delete(inviteId);
-  }
-  
-  // Remove from pending invites
+  // Find and remove all pending invites from this sender to recipient
   const userInvites = pendingInvites.get(to) || [];
-  const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
+  const inviteIndex = userInvites.findIndex((inv) => inv.from === from && inv.status === 'pending');
   
   if (inviteIndex !== -1) {
+    const inviteId = userInvites[inviteIndex].id;
+    
+    // Clear timer
+    if (inviteTimers.has(inviteId)) {
+      clearTimeout(inviteTimers.get(inviteId));
+      inviteTimers.delete(inviteId);
+    }
+    
     userInvites.splice(inviteIndex, 1);
     
-    // Notify recipient that invite was cancelled
+    // Notify recipient
     const recipientUser = userssample[to];
     if (recipientUser?.socketId) {
       const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
