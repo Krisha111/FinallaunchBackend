@@ -1,3 +1,5 @@
+// backend/model/Notification.js
+
 import mongoose from 'mongoose';
 
 const notificationSchema = new mongoose.Schema({
@@ -20,13 +22,19 @@ const notificationSchema = new mongoose.Schema({
       'special_friend_accepted',
       'follow_request',
       'like',
-      'comment'
+      'comment',
+      'post_like',           // ✅ ADD THIS
+      'post_comment'         // ✅ ADD THIS
     ],
     required: true
   },
   message: {
     type: String,
     required: true
+  },
+  postId: {                 // ✅ ADD THIS (optional field for likes/comments)
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Reel'
   },
   read: {
     type: Boolean,
@@ -40,3 +48,23 @@ notificationSchema.index({ user: 1, read: 1, createdAt: -1 });
 
 const Notification = mongoose.model('Notification', notificationSchema);
 export default Notification;
+```
+
+---
+
+## **What Changed:**
+
+1. ✅ Added `'post_like'` to the enum
+2. ✅ Added `'post_comment'` to the enum  
+3. ✅ Added `postId` field (optional) to store which post was liked/commented on
+
+---
+
+## **After Making This Change:**
+
+1. **Restart your backend server**
+2. **Try liking a post again**
+3. **Check the console logs** - you should now see:
+```
+  
+  
