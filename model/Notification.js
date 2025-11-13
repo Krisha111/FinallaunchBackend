@@ -48,23 +48,5 @@ notificationSchema.index({ user: 1, read: 1, createdAt: -1 });
 
 const Notification = mongoose.model('Notification', notificationSchema);
 export default Notification;
-```
 
----
-
-## **What Changed:**
-
-1. ✅ Added `'post_like'` to the enum
-2. ✅ Added `'post_comment'` to the enum  
-3. ✅ Added `postId` field (optional) to store which post was liked/commented on
-
----
-
-## **After Making This Change:**
-
-1. **Restart your backend server**
-2. **Try liking a post again**
-3. **Check the console logs** - you should now see:
-```
-  
   
