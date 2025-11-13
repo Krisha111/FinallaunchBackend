@@ -289,6 +289,38 @@ socket.on('ice_candidate', ({ room, candidate, from }) => {
   console.log(`🧊 ICE candidate from ${from} in room ${room}`);
   socket.to(room).emit('ice_candidate', { candidate, from });
 });
+// ✅ ADD THIS NEW HANDLER:
+socket.on('cancel_invite', ({ inviteId, to, from }) => {
+  console.log(`❌ ${from} cancelled invite to ${to}`);
+  
+  // Clear timer
+  if (inviteTimers.has(inviteId)) {
+    clearTimeout(inviteTimers.get(inviteId));
+    inviteTimers.delete(inviteId);
+  }
+  
+  // Remove from pending invites
+  const userInvites = pendingInvites.get(to) || [];
+  const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
+  
+  if (inviteIndex !== -1) {
+    userInvites.splice(inviteIndex, 1);
+    
+    // Notify recipient that invite was cancelled
+    const recipientUser = userssample[to];
+    if (recipientUser?.socketId) {
+      const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
+      if (recipientSocket) {
+        recipientSocket.emit('invite_cancelled', { inviteId, from });
+        const pendingOnly = userInvites.filter((inv) => inv.status === 'pending');
+        recipientSocket.emit('pending_invites', pendingOnly);
+      }
+    }
+  }
+  
+  // Confirm to sender
+  socket.emit('invite_cancelled_confirm', { to });
+});
   // ---------------------------
   // NEW: Lightweight join/leave room handlers (from small snippet)
   // ---------------------------
