@@ -126,6 +126,6 @@ router.post('/:reelId/like', protect, likeReel);
  * @desc    Add a comment to a reel
  * @access  Private
  */
-router.post('comments/:reelId', protect, addCommentToReel);
+router.post('/comments/:reelId', protect, addCommentToReel);
 
 export default router;
