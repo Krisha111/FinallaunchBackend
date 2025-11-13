@@ -22,7 +22,7 @@ import session from 'express-session';
 import profileStatsRoutes from './routes/Profile/profileStatsRoute.js';
 import MongoStore from 'connect-mongo';
 import { fileURLToPath } from 'url';
-import User from './model/User.js';
+
 
 // ================================
 // ✅ Load environment variables
