@@ -13,7 +13,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-import notificationRoutes from './routes/requestRoutes.js';
+
 import requestRoutes from './routes/requestRoutes.js';
 import profileInformationRoutes from './routes/Profile/ProfileInformationRoute.js';
 import verifyToken from './MiddleWare/verifyToken.js';
@@ -212,7 +212,7 @@ app.use('/api/profileInformation', profileInformationRoutes);
 // Register the route
 app.use('/api/requests', requestRoutes);
 // Register notifications route (added from the small snippet)
-app.use('/api/notifications', notificationRoutes);
+
 
 // ================================
 // ✅ Auth Check Route
