@@ -6,7 +6,7 @@ import User from '../../model/User.js';
 import dotenv from 'dotenv';
 dotenv.config();
 import mongoose from 'mongoose';
-
+import Notification from '../../model/Notification.js';
 // Use environment variable if provided (recommended for production), otherwise fall back to localhost for dev
 const BASE_URL = process.env.BASE_URL || "https://finallaunchbackend.onrender.com";
 
