@@ -13,7 +13,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-import requestRoutes from './routes/requestRoutes.js'
+import notificationRoutes from './routes/notificationRoutes.js';
+import requestRoutes from './routes/requestRoutes.js';
 import profileInformationRoutes from './routes/Profile/ProfileInformationRoute.js';
 import verifyToken from './MiddleWare/verifyToken.js';
 import reelRoutes from './routes/NewDrop/Reel.js';
@@ -210,6 +211,9 @@ app.use('/api/reels', reelRoutes);
 app.use('/api/profileInformation', profileInformationRoutes);
 // Register the route
 app.use('/api/requests', requestRoutes);
+// Register notifications route (added from the small snippet)
+app.use('/api/notifications', notificationRoutes);
+
 // ================================
 // ✅ Auth Check Route
 // ================================
@@ -244,13 +248,52 @@ let roomStates = {};
 
 // ✅ Pending invites - OUTSIDE connection handler (persists across connections)
 const pendingInvites = new Map();
+const connectedUsers = new Map();
+ 
 // ✅ Track already-sent invites to avoid duplicates
 const sentInvites = new Set(); // key = `${from}-${to}`
 const userSockets = new Map();
+
+// -------------------------------
+// Merge point: add small-snippet handlers in addition to large handlers
+// -------------------------------
+
 // ✅ ALL socket.on() handlers MUST be INSIDE this io.on('connection') block
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
 
+  // ---------------------------
+  // NEW: Lightweight join/leave room handlers (from small snippet)
+  // ---------------------------
+  socket.on('join_user_room', (userId) => {
+    if (!userId) {
+      console.warn('⚠️ No userId provided for join_user_room');
+      return;
+    }
+
+    console.log(`📍 User ${userId} joining room (socket: ${socket.id})`);
+    
+    // Join the room named after their userId
+    socket.join(userId);
+    
+    // Track this user in connectedUsers Map (userId -> socketId)
+    connectedUsers.set(userId, socket.id);
+    
+    console.log(`✅ User ${userId} joined their room`);
+    console.log(`👥 Total connected users: ${connectedUsers.size}`);
+  });
+
+  socket.on('leave_user_room', (userId) => {
+    if (!userId) return;
+    
+    console.log(`📤 User ${userId} leaving room`);
+    socket.leave(userId);
+    connectedUsers.delete(userId);
+  });
+
+  // ---------------------------
+  // Existing handlers (kept as-is)
+  // ---------------------------
   socket.on('user-connected', (userId) => {
     onlineUsers[userId] = socket.id;
     console.log(`👤 User connected: ${userId}`);
@@ -259,7 +302,7 @@ io.on('connection', (socket) => {
   socket.on('register', async ({ username, userId }) => {
     if (!username) return;
     console.log(`✅ Registered: ${username} (${userId})`);
-    socket.join(userId);
+    socket.join(userId.toString()); 
     socket.username = username;
     socket.userId = userId;
 
@@ -288,8 +331,9 @@ io.on('connection', (socket) => {
     console.log(`✅ Registered: ${username} (${socket.id})`);
     io.emit('active_users', Object.values(userssample));
   });
+
   //------------------------------
-  // Accept invite from notification
+  // Accept invite from notification (existing)
   socket.on('accept_invite_from_notification',
     ({ inviteId, from, to }) => {
       if (inviteTimers.has(inviteId)) {
@@ -369,119 +413,92 @@ io.on('connection', (socket) => {
   });
 
   // ================================
-  // ✅ NOTIFICATION SYSTEM
+  // ✅ NOTIFICATION & INVITE SYSTEM (existing complex version)
   // ================================
-// REPLACE your existing send_invite handler with this:
-socket.on("send_invite", ({ to, from }) => {
-  const inviteId = `${from}-${to}-${Date.now()}`;
-  const timestamp = Date.now();
+  // This is your detailed invite handler with timers, pendingInvites etc.
+  socket.on("send_invite", ({ to, from }) => {
+    const inviteId = `${from}-${to}-${Date.now()}`;
+    const timestamp = Date.now();
 
-  const invite = { id: inviteId, from, to, timestamp, status: 'pending' };
+    const invite = { id: inviteId, from, to, timestamp, status: 'pending' };
 
-  // Store in pending invites
-  if (!pendingInvites.has(to)) {
-    pendingInvites.set(to, []);
-  }
-  pendingInvites.get(to).push(invite);
+    // Store in pending invites
+    if (!pendingInvites.has(to)) {
+      pendingInvites.set(to, []);
+    }
+    pendingInvites.get(to).push(invite);
 
-  console.log(`📨 ${from} sent invite to ${to}`);
+    console.log(`📨 ${from} sent invite to ${to}`);
 
-  // Find recipient's socket and emit
-  const recipientUser = userssample[to];
-  if (recipientUser?.socketId) {
-    const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
-    if (recipientSocket) {
-      recipientSocket.emit("receive_invite", invite);
+    // Find recipient's socket and emit
+    const recipientUser = userssample[to];
+    if (recipientUser?.socketId) {
+      const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
+      if (recipientSocket) {
+        recipientSocket.emit("receive_invite", invite);
+        const userInvites = pendingInvites.get(to) || [];
+        const pendingOnly = userInvites.filter((inv) => inv.status === 'pending');
+        recipientSocket.emit('pending_invites', pendingOnly);
+      }
+    }
+
+    // ✅ SET 1 MINUTE EXPIRATION TIMER
+    const timer = setTimeout(() => {
+      console.log(`⏰ Invite ${inviteId} expired after 1 minute`);
+      
+      // Update invite status to expired
       const userInvites = pendingInvites.get(to) || [];
-      const pendingOnly = userInvites.filter((inv) => inv.status === 'pending');
-      recipientSocket.emit('pending_invites', pendingOnly);
-    }
-  }
-
-  // ✅ SET 1 MINUTE EXPIRATION TIMER
-  const timer = setTimeout(() => {
-    console.log(`⏰ Invite ${inviteId} expired after 1 minute`);
-    
-    // Update invite status to expired
-    const userInvites = pendingInvites.get(to) || [];
-    const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
-    
-    if (inviteIndex !== -1 && userInvites[inviteIndex].status === 'pending') {
-      userInvites[inviteIndex].status = 'expired';
+      const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
       
-      // Notify recipient that invite expired
-      const recipientUser = userssample[to];
-      if (recipientUser?.socketId) {
-        const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
-        if (recipientSocket) {
-          recipientSocket.emit('invite_expired', { inviteId, from });
-          const pendingOnly = userInvites.filter((inv) => inv.status === 'pending');
-          recipientSocket.emit('pending_invites', pendingOnly);
+      if (inviteIndex !== -1 && userInvites[inviteIndex].status === 'pending') {
+        userInvites[inviteIndex].status = 'expired';
+        
+        // Notify recipient that invite expired
+        const recipientUser = userssample[to];
+        if (recipientUser?.socketId) {
+          const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
+          if (recipientSocket) {
+            recipientSocket.emit('invite_expired', { inviteId, from });
+            const pendingOnly = userInvites.filter((inv) => inv.status === 'pending');
+            recipientSocket.emit('pending_invites', pendingOnly);
+          }
+        }
+        
+        // Notify sender that invite expired
+        const senderUser = userssample[from];
+        if (senderUser?.socketId) {
+          const senderSocket = io.sockets.sockets.get(senderUser.socketId);
+          if (senderSocket) {
+            senderSocket.emit('invite_expired_sender', { to });
+          }
         }
       }
       
-      // Notify sender that invite expired
-      const senderUser = userssample[from];
-      if (senderUser?.socketId) {
-        const senderSocket = io.sockets.sockets.get(senderUser.socketId);
-        if (senderSocket) {
-          senderSocket.emit('invite_expired_sender', { to });
-        }
-      }
-    }
-    
-    inviteTimers.delete(inviteId);
-  }, 60000); // 60 seconds = 1 minute
+      inviteTimers.delete(inviteId);
+    }, 60000); // 60 seconds = 1 minute
 
-  inviteTimers.set(inviteId, timer);
-  socket.emit('invite_sent', { to, success: true });
-});
+    inviteTimers.set(inviteId, timer);
+    socket.emit('invite_sent', { to, success: true });
+  });
 
+  // ---------------------------
+  // NEW: lightweight send_invite from the small snippet (kept in addition to the existing one)
+  // Note: this will emit receive_invite directly to the 'to' room / socket id.
+  // Because you requested to keep both, we register this too.
+  // This may cause multiple receive_invite events if both handlers run.
+  socket.on('send_invite_simple', (data) => {
+    const { from, to, roomId } = data || {};
+    console.log(`📨 [simple] Sending ReelChatt invite from ${from} to ${to}`);
+    // Emit to room named after recipient "to" — works whether they joined via join_user_room or registered
+    io.to(to).emit('receive_invite', {
+      id: `invite_${Date.now()}`,
+      from,
+      roomId,
+      timestamp: Date.now()
+    });
+  });
 
-
-  // socket.on("send_invite", ({ to, from }) => {
-  //   const inviteId = `${from}-${to}-${Date.now()}`; // Unique ID
-  //   const timestamp = Date.now();
-
-  //   const invite = { id: inviteId, from, to, timestamp, status: 'pending' };
-
-  //   // ✅ Store in pending invites
-  //   if (!pendingInvites.has(to)) {
-  //     pendingInvites.set(to, []);
-  //   }
-  //   pendingInvites.get(to).push(invite);
-  //   // pendingInvites.get(to).push({ ...invite, status: 'pending' });
-
-  //   console.log(`📨 ${from} sent invite to ${to}`);
-
-  //   // ✅ Find recipient's socket and emit
-  //   const recipientUser = userssample[to];
-
-  //   if (recipientUser?.socketId) {
-  //     const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
-
-  //     if (recipientSocket) {
-  //       // Emit to recipient
-  //       recipientSocket.emit("receive_invite", invite);
-  //       console.log(`✅ Invite notification sent to ${to}`);
-
-  //       // Send updated pending invites count
-  //       const userInvites = pendingInvites.get(to) || [];
-  //       const pendingOnly = userInvites.filter((inv) =>
-  //         inv.status === 'pending');
-  //       recipientSocket.emit('pending_invites', pendingOnly);
-  //     } else {
-  //       console.log(`⚠️ Recipient ${to} socket not found`);
-  //     }
-  //   } else {
-  //     console.log(`⚠️ Recipient ${to} is offline`);
-  //   }
-
-  //   // Confirm to sender
-  //   socket.emit('invite_sent', { to, success: true });
-  // });
-
-  // Get pending invites when user comes online
+  // Get pending invites when user comes online (existing)
   socket.on('get_pending_invites', ({ username }) => {
     const invites = pendingInvites.get(username) || [];
     const pendingOnly = invites.filter((inv) => inv.status === 'pending');
@@ -489,10 +506,9 @@ socket.on("send_invite", ({ to, from }) => {
     console.log(`📬 Sent ${pendingOnly.length} pending invites to ${username}`);
   });
 
-
-
-
-  // Same for reject_invite
+  // ---------------------------
+  // Same for reject_invite (existing)
+  // ---------------------------
   socket.on('reject_invite', ({ inviteId, username }) => {
     const userInvites = pendingInvites.get(username) || [];
     const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
@@ -623,6 +639,12 @@ socket.on("send_invite", ({ to, from }) => {
     for (const [uid, sid] of Object.entries(onlineUsers)) {
       if (sid === socket.id) {
         delete onlineUsers[uid];
+      }
+    }
+    // Also remove from connectedUsers map (if present)
+    for (const [uid, sid] of connectedUsers.entries()) {
+      if (sid === socket.id) {
+        connectedUsers.delete(uid);
       }
     }
     const room = rooms[socket.username];
@@ -793,6 +815,9 @@ server.listen(PORT, HOST, () => {
   console.log(`🔌 Socket.IO: Active`);
   console.log('='.repeat(50) + '\n');
 });
+
+// Export io and connectedUsers so other modules can access them (from small snippet)
+export { io, connectedUsers };
 
 // ================================
 // ✅ Unhandled Promise Rejection
