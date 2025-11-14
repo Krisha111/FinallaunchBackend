@@ -395,68 +395,77 @@ socket.on('cancel_invite', ({ to, from }) => {
 
   //------------------------------
   // Accept invite from notification (existing)
-  socket.on('accept_invite_from_notification',
-    ({ inviteId, from, to }) => {
-      if (inviteTimers.has(inviteId)) {
-        clearTimeout(inviteTimers.get(inviteId));
-        inviteTimers.delete(inviteId);
-      }
-      // Remove from pending invites
-      const userInvites = pendingInvites.get(to) || [];
-      const inviteIndex = userInvites.findIndex((inv) =>
-        inv.id === inviteId);
 
-      if (inviteIndex !== -1) {
-        userInvites.splice(inviteIndex, 1);
-      }
+socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
+  console.log(`✅ ${to} accepting invite from ${from} via notification`);
+  
+  if (inviteTimers.has(inviteId)) {
+    clearTimeout(inviteTimers.get(inviteId));
+    inviteTimers.delete(inviteId);
+  }
 
-      // ✅ Send updated pending count immediately
-      const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
+  // Remove from pending invites
+  const userInvites = pendingInvites.get(to) || [];
+  const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
 
-      // Find receiver's socket
-      const receiver = userssample[to];
-      if (receiver?.socketId) {
-        io.to(receiver.socketId).emit('pending_invites', remainingInvites);
-      }
+  if (inviteIndex !== -1) {
+    userInvites.splice(inviteIndex, 1);
+  }
 
-      // Create room (same logic as accept_invite)
-      const room = `${from}-${to}`;
-      socket.join(room);
+  // Send updated pending count immediately
+  const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
+  const receiver = userssample[to];
+  if (receiver?.socketId) {
+    io.to(receiver.socketId).emit('pending_invites', remainingInvites);
+  }
 
-      const fromUser = userssample[from];
-      if (fromUser?.socketId) {
-        const fromSocket = io.sockets.sockets.get(fromUser.socketId);
-        if (fromSocket) {
-          fromSocket.join(room);
+  // Create room
+  const room = `${from}-${to}`;
+  
+  // Make receiver join the room
+  socket.join(room);
 
-          roomStates[room] = { currentIndex: 0, isPlaying: true };
-          admins[room] = from;
-          rooms[to] = room;
-          rooms[from] = room;
+  const fromUser = userssample[from];
+  if (fromUser?.socketId) {
+    const fromSocket = io.sockets.sockets.get(fromUser.socketId);
+    if (fromSocket) {
+      fromSocket.join(room);
 
-          console.log(`✅ Room created from notification: ${room} | Admin: ${from}`);
+      // Initialize room state
+      const currentIndex = 0;
+      roomStates[room] = { currentIndex, isPlaying: true };
+      admins[room] = from;
+      rooms[to] = room;
+      rooms[from] = room;
 
-          io.to(fromUser.socketId).emit('invite_accepted', {
-            by: to,
-            from: from,
-            room,
-            isAdmin: true,
-            currentReelIndex: 0,
-          });
+      console.log(`✅ Room created: ${room} | Admin: ${from} | Index: ${currentIndex}`);
 
-          io.to(socket.id).emit('joined_room', {
-            room,
-            isAdmin: false,
-            currentReelIndex: 0,
-          });
-        }
-      } else {
-        // Sender is offline
-        socket.emit('invite_accept_failed', {
-          message: `${from} is currently offline`,
-        });
-      }
+      // Emit to SENDER (admin)
+      io.to(fromUser.socketId).emit('invite_accepted', {
+        by: to,
+        from: from,
+        room,
+        isAdmin: true,
+        currentReelIndex: currentIndex,
+      });
+
+      // Emit to RECEIVER (viewer) - THIS IS CRITICAL
+      io.to(socket.id).emit('invite_accepted', {
+        by: to,
+        from: from,
+        room,
+        isAdmin: false,
+        currentReelIndex: currentIndex,
+      });
+
+      console.log(`📤 Sent invite_accepted to both users`);
+    }
+  } else {
+    socket.emit('invite_accept_failed', {
+      message: `${from} is currently offline`,
     });
+  }
+});
   //----------------------------
 
   socket.on('send-notification', (data) => {
@@ -589,46 +598,69 @@ socket.on('cancel_invite', ({ to, from }) => {
   });
 
   // ✅ Regular accept_invite (from modal) - WITH PENDING INVITE CLEANUP
-  socket.on('accept_invite', ({ from }) => {
-    const room = `${from}-${socket.username}`;
-    socket.join(room);
+socket.on('accept_invite', ({ from }) => {
+  console.log(`✅ ${socket.username} accepting invite from ${from}`);
+  
+  const room = `${from}-${socket.username}`;
+  socket.join(room);
 
-    // ✅ Remove from pending invites if it exists
-    const userInvites = pendingInvites.get(socket.username) || [];
-    const inviteIndex = userInvites.findIndex((inv) => inv.from === from);
-    if (inviteIndex !== -1) {
-      userInvites.splice(inviteIndex, 1);
+  // Remove from pending invites
+  const userInvites = pendingInvites.get(socket.username) || [];
+  const inviteIndex = userInvites.findIndex((inv) => inv.from === from && inv.status === 'pending');
+  
+  if (inviteIndex !== -1) {
+    const inviteId = userInvites[inviteIndex].id;
+    
+    if (inviteTimers.has(inviteId)) {
+      clearTimeout(inviteTimers.get(inviteId));
+      inviteTimers.delete(inviteId);
     }
+    
+    userInvites.splice(inviteIndex, 1);
+  }
 
-    const fromUser = userssample[from];
-    if (fromUser?.socketId) {
-      const fromSocket = io.sockets.sockets.get(fromUser.socketId);
-      if (fromSocket) {
-        fromSocket.join(room);
+  // Send updated pending count
+  const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
+  socket.emit('pending_invites', remainingInvites);
 
-        roomStates[room] = { currentIndex: 0, isPlaying: true };
-        admins[room] = from;
-        rooms[socket.username] = room;
-        rooms[from] = room;
+  const fromUser = userssample[from];
+  if (fromUser?.socketId) {
+    const fromSocket = io.sockets.sockets.get(fromUser.socketId);
+    if (fromSocket) {
+      fromSocket.join(room);
 
-        console.log(`✅ Room created: ${room} | Admin: ${from}`);
+      const currentIndex = 0;
+      roomStates[room] = { currentIndex, isPlaying: true };
+      admins[room] = from;
+      rooms[socket.username] = room;
+      rooms[from] = room;
 
-        io.to(fromUser.socketId).emit('invite_accepted', {
-          by: socket.username,
-          from: fromUser.username,
-          room,
-          isAdmin: true,
-          currentReelIndex: 0,
-        });
+      console.log(`✅ Room created: ${room} | Admin: ${from}`);
 
-        io.to(socket.id).emit('joined_room', {
-          room,
-          isAdmin: false,
-          currentReelIndex: 0,
-        });
-      }
+      // Emit to ADMIN
+      io.to(fromUser.socketId).emit('invite_accepted', {
+        by: socket.username,
+        from: from,
+        room,
+        isAdmin: true,
+        currentReelIndex: currentIndex,
+      });
+
+      // Emit to RECEIVER
+      io.to(socket.id).emit('invite_accepted', {
+        by: socket.username,
+        from: from,
+        room,
+        isAdmin: false,
+        currentReelIndex: currentIndex,
+      });
     }
-  });
+  } else {
+    socket.emit('invite_accept_failed', {
+      message: `${from} is currently offline`,
+    });
+  }
+});
 
   socket.on('send_message', ({ room, message, sender }) => {
     console.log(
