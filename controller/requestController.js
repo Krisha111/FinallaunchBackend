@@ -10,6 +10,31 @@ import User from '../model/User.js';
 
 import Notification from '../model/Notification.js';
 
+// ✅ Get all notifications (likes, comments, etc.)
+export const getNotifications = async (req, res) => {
+  try {
+    const userId = req.user._id;
+
+    // Fetch all notifications for the user
+    const notifications = await Notification.find({
+      user: userId,
+    })
+      .populate('sender', 'name username profileImage')
+      .sort({ createdAt: -1 })
+      .limit(50); // Limit to last 50 notifications
+
+    res.status(200).json({
+      success: true,
+      notifications
+    });
+  } catch (error) {
+    console.error('❌ Get notifications error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to fetch notifications'
+    });
+  }
+};
 // ✅ Send like notification
 export const sendLikeNotification = async (req, res) => {
   console.log('\n🔔 ========== SEND LIKE NOTIFICATION ==========');

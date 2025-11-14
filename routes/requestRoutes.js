@@ -12,10 +12,13 @@ import {
   ,unbond, unchose, 
   getReceivedAcceptedRequests, // ✅ ADD THIS
   sendLikeNotification,
-  sendCommentNotification
+  sendCommentNotification,
+  getNotifications
 } from '../controller/requestController.js';
 
 const router = express.Router();
+router.get('/notifications', protect, getNotifications);
+
 router.post('/like', protect, sendLikeNotification);
 router.post('/comment', protect, sendCommentNotification);
 
