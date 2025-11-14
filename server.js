@@ -638,22 +638,25 @@ socket.on('accept_invite', ({ from }) => {
       console.log(`✅ Room created: ${room} | Admin: ${from}`);
 
       // Emit to ADMIN
-      io.to(fromUser.socketId).emit('invite_accepted', {
-        by: socket.username,
-        from: from,
-        room,
-        isAdmin: true,
-        currentReelIndex: currentIndex,
-      });
+     // Emit to SENDER (admin)
+io.to(fromUser.socketId).emit('invite_accepted', {
+  by: to,
+  from: from,
+  room,
+  isAdmin: true,
+  currentReelIndex: currentIndex,
+});
 
-      // Emit to RECEIVER
-      io.to(socket.id).emit('invite_accepted', {
-        by: socket.username,
-        from: from,
-        room,
-        isAdmin: false,
-        currentReelIndex: currentIndex,
-      });
+// Emit to RECEIVER (viewer) - THIS IS CRITICAL
+io.to(socket.id).emit('invite_accepted', {
+  by: to,
+  from: from,
+  room,
+  isAdmin: false,
+  currentReelIndex: currentIndex,
+});
+
+console.log(`📤 Sent invite_accepted to both users`);
     }
   } else {
     socket.emit('invite_accept_failed', {
