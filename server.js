@@ -269,7 +269,9 @@ socket.on('start_voice_chat', ({ room, username }) => {
   console.log(`🎙️ ${username} started voice chat in room ${room}`);
   socket.to(room).emit('voice_chat_started', { username });
 });
-
+socket.on("voice_data", ({ room, audioData, from }) => {
+  socket.to(room).emit("voice_data", { audioData, from });
+});
 socket.on('stop_voice_chat', ({ room, username }) => {
   console.log(`🔇 ${username} stopped voice chat in room ${room}`);
   socket.to(room).emit('voice_chat_stopped', { username });
