@@ -261,21 +261,10 @@ const userSockets = new Map();
 // ✅ ALL socket.on() handlers MUST be INSIDE this io.on('connection') block
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
-// Add these handlers INSIDE io.on('connection', (socket) => { ... })
-// Place them after your existing socket handlers, before the disconnect handler
 
-// ==================== VOICE CHAT HANDLERS ====================
-// Replace your existing voice chat handlers with these enhanced versions:
-socket.on('voice_data', ({ room, audioData, from, timestamp }) => {
-  // Forward audio chunk to other user in room
-  socket.to(room).emit('voice_data', { audioData, from, timestamp });
-  console.log(`🎤 Audio chunk forwarded from ${from} in room ${room}`);
-});
 socket.on('start_voice_chat', async ({ room, username }) => {
   console.log(`🎙️ ${username} started voice chat in room ${room}`);
   socket.to(room).emit('voice_chat_started', { username });
-  
-  // Notify the starter that voice chat is ready
   socket.emit('voice_chat_ready', { room });
 });
 
@@ -284,36 +273,6 @@ socket.on('stop_voice_chat', ({ room, username }) => {
   socket.to(room).emit('voice_chat_stopped', { username });
 });
 
-// WebRTC signaling for peer-to-peer audio
-socket.on('webrtc_offer', ({ room, offer, from }) => {
-  console.log(`📞 WebRTC offer from ${from} in room ${room}`);
-  socket.to(room).emit('webrtc_offer', { offer, from });
-});
-
-socket.on('webrtc_answer', ({ room, answer, from }) => {
-  console.log(`📞 WebRTC answer from ${from} in room ${room}`);
-  socket.to(room).emit('webrtc_answer', { answer, from });
-});
-
-socket.on('webrtc_ice_candidate', ({ room, candidate, from }) => {
-  console.log(`🧊 ICE candidate from ${from} in room ${room}`);
-  socket.to(room).emit('webrtc_ice_candidate', { candidate, from });
-});
-
-socket.on('voice_offer', ({ room, offer, from }) => {
-  console.log(`📞 Voice offer from ${from} in room ${room}`);
-  socket.to(room).emit('voice_offer', { offer, from });
-});
-
-socket.on('voice_answer', ({ room, answer, from }) => {
-  console.log(`📞 Voice answer from ${from} in room ${room}`);
-  socket.to(room).emit('voice_answer', { answer, from });
-});
-
-socket.on('ice_candidate', ({ room, candidate, from }) => {
-  console.log(`🧊 ICE candidate from ${from} in room ${room}`);
-  socket.to(room).emit('ice_candidate', { candidate, from });
-});
 // ✅ ADD THIS NEW HANDLER:
 socket.on('cancel_invite', ({ to, from }) => {
   console.log(`❌ ${from} cancelled invite to ${to}`);
@@ -417,10 +376,7 @@ socket.on('cancel_invite', ({ to, from }) => {
     console.log(`✅ Registered: ${username} (${socket.id})`);
     io.emit('active_users', Object.values(userssample));
   });
-socket.on('audio_stream', ({ room, audioData, from }) => {
-  // Forward audio to other user in room
-  socket.to(room).emit('audio_stream', { audioData, from });
-});
+
   //------------------------------
   // Accept invite from notification (existing)
 

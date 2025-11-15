@@ -28,6 +28,7 @@
     "multer-storage-cloudinary": "^4.0.0",
     "passport": "^0.7.0",
     "path": "^0.12.7",
+    "react-native-agora": "^4.5.3",
     "socket.io": "^4.8.1",
     "uuid": "^13.0.0"
   },
