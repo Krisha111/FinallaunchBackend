@@ -265,14 +265,35 @@ io.on('connection', (socket) => {
 // Place them after your existing socket handlers, before the disconnect handler
 
 // ==================== VOICE CHAT HANDLERS ====================
-socket.on('start_voice_chat', ({ room, username }) => {
+// Replace your existing voice chat handlers with these enhanced versions:
+
+socket.on('start_voice_chat', async ({ room, username }) => {
   console.log(`🎙️ ${username} started voice chat in room ${room}`);
   socket.to(room).emit('voice_chat_started', { username });
+  
+  // Notify the starter that voice chat is ready
+  socket.emit('voice_chat_ready', { room });
 });
 
 socket.on('stop_voice_chat', ({ room, username }) => {
   console.log(`🔇 ${username} stopped voice chat in room ${room}`);
   socket.to(room).emit('voice_chat_stopped', { username });
+});
+
+// WebRTC signaling for peer-to-peer audio
+socket.on('webrtc_offer', ({ room, offer, from }) => {
+  console.log(`📞 WebRTC offer from ${from} in room ${room}`);
+  socket.to(room).emit('webrtc_offer', { offer, from });
+});
+
+socket.on('webrtc_answer', ({ room, answer, from }) => {
+  console.log(`📞 WebRTC answer from ${from} in room ${room}`);
+  socket.to(room).emit('webrtc_answer', { answer, from });
+});
+
+socket.on('webrtc_ice_candidate', ({ room, candidate, from }) => {
+  console.log(`🧊 ICE candidate from ${from} in room ${room}`);
+  socket.to(room).emit('webrtc_ice_candidate', { candidate, from });
 });
 
 socket.on('voice_offer', ({ room, offer, from }) => {
