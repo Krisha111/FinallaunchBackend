@@ -266,7 +266,11 @@ io.on('connection', (socket) => {
 
 // ==================== VOICE CHAT HANDLERS ====================
 // Replace your existing voice chat handlers with these enhanced versions:
-
+socket.on('voice_data', ({ room, audioData, from, timestamp }) => {
+  // Forward audio chunk to other user in room
+  socket.to(room).emit('voice_data', { audioData, from, timestamp });
+  console.log(`🎤 Audio chunk forwarded from ${from} in room ${room}`);
+});
 socket.on('start_voice_chat', async ({ room, username }) => {
   console.log(`🎙️ ${username} started voice chat in room ${room}`);
   socket.to(room).emit('voice_chat_started', { username });
