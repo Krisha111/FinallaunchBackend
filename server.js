@@ -261,11 +261,13 @@ const userSockets = new Map();
 // ✅ ALL socket.on() handlers MUST be INSIDE this io.on('connection') block
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
+// Add these handlers INSIDE io.on('connection', (socket) => { ... })
+// Place them after your existing socket handlers, before the disconnect handler
 
-socket.on('start_voice_chat', async ({ room, username }) => {
+// ==================== VOICE CHAT HANDLERS ====================
+socket.on('start_voice_chat', ({ room, username }) => {
   console.log(`🎙️ ${username} started voice chat in room ${room}`);
   socket.to(room).emit('voice_chat_started', { username });
-  socket.emit('voice_chat_ready', { room });
 });
 
 socket.on('stop_voice_chat', ({ room, username }) => {
@@ -273,6 +275,20 @@ socket.on('stop_voice_chat', ({ room, username }) => {
   socket.to(room).emit('voice_chat_stopped', { username });
 });
 
+socket.on('voice_offer', ({ room, offer, from }) => {
+  console.log(`📞 Voice offer from ${from} in room ${room}`);
+  socket.to(room).emit('voice_offer', { offer, from });
+});
+
+socket.on('voice_answer', ({ room, answer, from }) => {
+  console.log(`📞 Voice answer from ${from} in room ${room}`);
+  socket.to(room).emit('voice_answer', { answer, from });
+});
+
+socket.on('ice_candidate', ({ room, candidate, from }) => {
+  console.log(`🧊 ICE candidate from ${from} in room ${room}`);
+  socket.to(room).emit('ice_candidate', { candidate, from });
+});
 // ✅ ADD THIS NEW HANDLER:
 socket.on('cancel_invite', ({ to, from }) => {
   console.log(`❌ ${from} cancelled invite to ${to}`);
