@@ -413,7 +413,10 @@ socket.on('cancel_invite', ({ to, from }) => {
     console.log(`✅ Registered: ${username} (${socket.id})`);
     io.emit('active_users', Object.values(userssample));
   });
-
+socket.on('audio_stream', ({ room, audioData, from }) => {
+  // Forward audio to other user in room
+  socket.to(room).emit('audio_stream', { audioData, from });
+});
   //------------------------------
   // Accept invite from notification (existing)
 
