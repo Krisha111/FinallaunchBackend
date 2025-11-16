@@ -668,7 +668,21 @@ console.log(`📤 Sent invite_accepted to both users`);
       socket.to(room).emit('sync_reel_index', { index });
     }
   });
+// Voice chat handlers
+socket.on('voice_chat_started', ({ room }) => {
+  console.log(`🎤 Voice chat started in room: ${room}`);
+  socket.to(room).emit('voice_chat_started', { room });
+});
 
+socket.on('voice_chat_ended', ({ room }) => {
+  console.log(`🔇 Voice chat ended in room: ${room}`);
+  socket.to(room).emit('voice_chat_ended', { room });
+});
+
+socket.on('voice_mute_state', ({ room, isMuted, username }) => {
+  console.log(`${username} is ${isMuted ? 'muted' : 'unmuted'} in room: ${room}`);
+  socket.to(room).emit('voice_mute_state', { username, isMuted });
+});
   socket.on('reel_play', ({ room, index, isPlaying }) => {
     const admin = admins[room];
     if (socket.username === admin) {
@@ -700,6 +714,8 @@ console.log(`📤 Sent invite_accepted to both users`);
   });
 
   socket.on('disconnect', () => {
+  
+ 
     // Remove user from map on disconnect
     for (const [userId, socketId] of userSockets.entries()) {
       if (socketId === socket.id) {
@@ -727,6 +743,9 @@ console.log(`📤 Sent invite_accepted to both users`);
     }
     const room = rooms[socket.username];
     const wasAdmin = admins[room] === socket.username;
+     if (room) {
+    io.to(room).emit('voice_chat_ended', { room });
+  }
     if (room) {
       delete rooms[socket.username];
       if (wasAdmin) {
