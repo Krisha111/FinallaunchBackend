@@ -669,20 +669,20 @@ console.log(`📤 Sent invite_accepted to both users`);
     }
   });
 // Voice chat handlers
-socket.on('voice_chat_started', ({ room }) => {
-  console.log(`🎤 Voice chat started in room: ${room}`);
-  socket.to(room).emit('voice_chat_started', { room });
-});
+// socket.on('voice_chat_started', ({ room }) => {
+//   console.log(`🎤 Voice chat started in room: ${room}`);
+//   socket.to(room).emit('voice_chat_started', { room });
+// });
 
-socket.on('voice_chat_ended', ({ room }) => {
-  console.log(`🔇 Voice chat ended in room: ${room}`);
-  socket.to(room).emit('voice_chat_ended', { room });
-});
+// socket.on('voice_chat_ended', ({ room }) => {
+//   console.log(`🔇 Voice chat ended in room: ${room}`);
+//   socket.to(room).emit('voice_chat_ended', { room });
+// });
 
-socket.on('voice_mute_state', ({ room, isMuted, username }) => {
-  console.log(`${username} is ${isMuted ? 'muted' : 'unmuted'} in room: ${room}`);
-  socket.to(room).emit('voice_mute_state', { username, isMuted });
-});
+// socket.on('voice_mute_state', ({ room, isMuted, username }) => {
+//   console.log(`${username} is ${isMuted ? 'muted' : 'unmuted'} in room: ${room}`);
+//   socket.to(room).emit('voice_mute_state', { username, isMuted });
+// });
   socket.on('reel_play', ({ room, index, isPlaying }) => {
     const admin = admins[room];
     if (socket.username === admin) {
@@ -743,9 +743,9 @@ socket.on('voice_mute_state', ({ room, isMuted, username }) => {
     }
     const room = rooms[socket.username];
     const wasAdmin = admins[room] === socket.username;
-     if (room) {
-    io.to(room).emit('voice_chat_ended', { room });
-  }
+  //    if (room) {
+  //   io.to(room).emit('voice_chat_ended', { room });
+  // }
     if (room) {
       delete rooms[socket.username];
       if (wasAdmin) {
