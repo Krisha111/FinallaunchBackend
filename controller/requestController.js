@@ -552,26 +552,32 @@ export const getRequestDetails = async (req, res) => {
 
 
 
-// Get pending requests
-// Get pending requests
 export const getPendingRequests = async (req, res) => {
   try {
+    const userId = req.user._id;
+
+    // Fetch only pending bond and special friend requests
     const requests = await Request.find({
-      recipient: req.user._id,
-      status: 'pending'
+      recipient: userId,
+      status: 'pending',
+      type: { $in: ['bond', 'special_friend'] } // ✅ filter by type
     })
     .populate('sender', 'name username profileImage')
     .sort({ createdAt: -1 });
 
-    res.status(200).json(requests);
+    res.status(200).json({
+      success: true,
+      requests
+    });
   } catch (error) {
     console.error('❌ Get pending requests error:', error);
     res.status(500).json({ 
       success: false,
-      message: error.message || 'Failed to fetch requests'
+      message: error.message || 'Failed to fetch pending requests'
     });
   }
 };
+
 
 export const acceptRequest = async (req, res) => {
   try {
