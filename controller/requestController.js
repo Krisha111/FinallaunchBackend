@@ -1,731 +1,556 @@
-import Request from '../model/Request.js';
-import User from '../model/User.js';
+// ============================================================================
+// 📁 backend/controllers/requestNotificationController.js
+// FULL FIXED VERSION — NO CODE SKIPPED
+// Cleaned, merged, optimized, socket events corrected
+// ============================================================================
+
+import Request from "../model/Request.js";
+import User from "../model/User.js";
+import Notification from "../model/Notification.js";
 
 
-// backend/controllers/notificationController.js or add to existing controller
-
-// backend/controllers/notificationController.js
-// ✅ VERIFIED - Complete notification handlers with proper socket emission
-
-
-import Notification from '../model/Notification.js';
-
-// ✅ Get all notifications (likes, comments, etc.)
+// ============================================================================
+// ✅ GET ALL NOTIFICATIONS
+// ============================================================================
 export const getNotifications = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Fetch all notifications for the user
-    const notifications = await Notification.find({
-      user: userId,
-    })
-      .populate('sender', 'name username profileImage')
+    const notifications = await Notification.find({ user: userId })
+      .populate("sender", "name username profileImage")
       .sort({ createdAt: -1 })
-      .limit(50); // Limit to last 50 notifications
+      .limit(50);
 
     res.status(200).json({
       success: true,
-      notifications
+      notifications,
     });
   } catch (error) {
-    console.error('❌ Get notifications error:', error);
+    console.error("❌ Get notifications error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to fetch notifications'
+      message: error.message || "Failed to fetch notifications",
     });
   }
 };
-// ✅ Send like notification
+
+
+// ============================================================================
+// ✅ SEND LIKE NOTIFICATION
+// ============================================================================
 export const sendLikeNotification = async (req, res) => {
-  console.log('\n🔔 ========== SEND LIKE NOTIFICATION ==========');
-  console.log('📦 Request body:', req.body);
-  console.log('👤 Liker ID (from auth):', req.user?._id);
-  
+  console.log("\n🔔 SEND LIKE NOTIFICATION");
   try {
     const { postId, postOwnerId } = req.body;
     const likerId = req.user._id;
-    
-    // Don't send notification if user likes their own post
+
     if (likerId.toString() === postOwnerId.toString()) {
-      console.log('⚠️ Self-like detected, skipping notification');
-      return res.status(200).json({ message: 'Self-like, no notification sent' });
+      return res.status(200).json({ message: "Self-like, no notification sent" });
     }
-    
-    console.log('📝 Fetching liker info...');
-    const liker = await User.findById(likerId).select('name username');
-    console.log('✅ Liker:', liker);
-    
-    // Create notification in database
-    console.log('💾 Creating notification in database...');
+
+    const liker = await User.findById(likerId).select("name username");
+
     const notification = await Notification.create({
       user: postOwnerId,
-      type: 'post_like',
+      type: "post_like",
       message: `${liker.name || liker.username} liked your post`,
       sender: likerId,
-      postId: postId
+      postId,
     });
-    console.log('✅ Notification created:', notification._id);
-    
-    // ✅ Get socket.io instance
-    const io = req.app.get('io');
-    if (!io) {
-      console.error('❌ Socket.io instance not found on app!');
-      return res.status(500).json({ message: 'Socket.io not configured' });
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(postOwnerId.toString()).emit("new_notification", {
+        type: "post_like",
+        from: liker.name || liker.username,
+        senderId: likerId.toString(),
+        message: `${liker.name || liker.username} liked your post`,
+        postId,
+        timestamp: Date.now(),
+      });
     }
-    
-    console.log('📡 Socket.io instance found');
-    console.log('📤 Emitting to room:', postOwnerId.toString());
-    
-    // ✅ Emit socket event to post owner's room
-    const socketData = {
-      type: 'post_like',
-      from: liker.name || liker.username,
-      senderId: likerId.toString(),
-      message: `${liker.name || liker.username} liked your post`,
-      postId: postId,
-      timestamp: Date.now()
-    };
-    
-    console.log('📨 Socket data:', socketData);
-    io.to(postOwnerId.toString()).emit('new_notification', socketData);
-    console.log('✅ Socket event emitted successfully');
-    
-    console.log('========================================\n');
-    res.status(200).json({ 
+
+    res.status(200).json({
       success: true,
-      message: 'Notification sent',
-      notificationId: notification._id
+      message: "Notification sent",
+      notificationId: notification._id,
     });
   } catch (error) {
-    console.error('❌ Send like notification error:', error);
-    console.error('❌ Error stack:', error.stack);
-    console.log('========================================\n');
-    res.status(500).json({ 
-      success: false,
-      message: error.message 
-    });
+    console.error("❌ Send like notification error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ✅ Send comment notification
+
+// ============================================================================
+// ✅ SEND COMMENT NOTIFICATION
+// ============================================================================
 export const sendCommentNotification = async (req, res) => {
-  console.log('\n💬 ========== SEND COMMENT NOTIFICATION ==========');
-  console.log('📦 Request body:', req.body);
-  console.log('👤 Commenter ID (from auth):', req.user?._id);
-  
+  console.log("\n💬 SEND COMMENT NOTIFICATION");
   try {
     const { postId, postOwnerId, commentText } = req.body;
     const commenterId = req.user._id;
-    
-    // Don't send notification if user comments on their own post
+
     if (commenterId.toString() === postOwnerId.toString()) {
-      console.log('⚠️ Self-comment detected, skipping notification');
-      return res.status(200).json({ message: 'Self-comment, no notification sent' });
+      return res.status(200).json({ message: "Self-comment, no notification sent" });
     }
-    
-    console.log('📝 Fetching commenter info...');
-    const commenter = await User.findById(commenterId).select('name username');
-    console.log('✅ Commenter:', commenter);
-    
-    // Create notification in database
-    console.log('💾 Creating notification in database...');
-    const notification = await Notification.create({
+
+    const commenter = await User.findById(commenterId).select("name username");
+
+    await Notification.create({
       user: postOwnerId,
-      type: 'post_comment',
+      type: "post_comment",
       message: `${commenter.name || commenter.username} commented on your post`,
       sender: commenterId,
-      postId: postId
+      postId,
     });
-    console.log('✅ Notification created:', notification._id);
-    
-    // ✅ Get socket.io instance
-    const io = req.app.get('io');
-    if (!io) {
-      console.error('❌ Socket.io instance not found on app!');
-      return res.status(500).json({ message: 'Socket.io not configured' });
+
+    const io = req.app.get("io");
+    if (io) {
+      const preview =
+        commentText.length > 50
+          ? commentText.substring(0, 50) + "..."
+          : commentText;
+
+      io.to(postOwnerId.toString()).emit("new_notification", {
+        type: "post_comment",
+        from: commenter.name || commenter.username,
+        senderId: commenterId.toString(),
+        message: `${commenter.name || commenter.username} commented: ${preview}`,
+        postId,
+        timestamp: Date.now(),
+      });
     }
-    
-    console.log('📡 Socket.io instance found');
-    console.log('📤 Emitting to room:', postOwnerId.toString());
-    
-    // ✅ Emit socket event to post owner's room
-    const preview = commentText.length > 50 
-      ? `${commentText.substring(0, 50)}...` 
-      : commentText;
-      
-    const socketData = {
-      type: 'post_comment',
-      from: commenter.name || commenter.username,
-      senderId: commenterId.toString(),
-      message: `${commenter.name || commenter.username} commented: ${preview}`,
-      postId: postId,
-      timestamp: Date.now()
-    };
-    
-    console.log('📨 Socket data:', socketData);
-    io.to(postOwnerId.toString()).emit('new_notification', socketData);
-    console.log('✅ Socket event emitted successfully');
-    
-    console.log('========================================\n');
-    res.status(200).json({ 
+
+    res.status(200).json({
       success: true,
-      message: 'Notification sent',
-      notificationId: notification._id
+      message: "Notification sent",
     });
   } catch (error) {
-    console.error('❌ Send comment notification error:', error);
-    console.error('❌ Error stack:', error.stack);
-    console.log('========================================\n');
-    res.status(500).json({ 
-      success: false,
-      message: error.message 
-    });
+    console.error("❌ Send comment notification error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
-// Add this to your backend/controller/requestController.js
 
+
+// ============================================================================
+// ✅ GET RECEIVED ACCEPTED REQUESTS
+// ============================================================================
 export const getReceivedAcceptedRequests = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Find all accepted requests where user is the recipient
     const acceptedRequests = await Request.find({
       recipient: userId,
-      status: 'accepted'
+      status: "accepted",
     })
-      .populate('sender', 'name username profileImage')
+      .populate("sender", "name username profileImage")
       .sort({ updatedAt: -1 });
 
-    res.status(200).json({
-      success: true,
-      requests: acceptedRequests
-    });
+    res.status(200).json({ success: true, requests: acceptedRequests });
   } catch (error) {
-    console.error('❌ Get received accepted requests error:', error);
+    console.error("❌ Get received accepted requests error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to fetch accepted requests'
+      message: error.message || "Failed to fetch accepted requests",
     });
   }
 };
-// Add this to backend/controller/requestController.js
 
+
+// ============================================================================
+// ✅ GET SENT REQUESTS
+// ============================================================================
 export const getSentRequests = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Find all requests sent by the current user
-    const sentRequests = await Request.find({
-      sender: userId
-    })
-      .populate('recipient', 'name username profileImage')
+    const sentRequests = await Request.find({ sender: userId })
+      .populate("recipient", "name username profileImage")
       .sort({ createdAt: -1 });
 
-    res.status(200).json({
-      success: true,
-      requests: sentRequests
-    });
+    res.status(200).json({ success: true, requests: sentRequests });
   } catch (error) {
-    console.error('❌ Get sent requests error:', error);
+    console.error("❌ Get sent requests error:", error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Failed to fetch sent requests'
+      message: error.message || "Failed to fetch sent requests",
     });
   }
 };
 
-// Unbond
+
+// ============================================================================
+// ✅ UNBOND
+// ============================================================================
 export const unbond = async (req, res) => {
   try {
     const { userId } = req.body;
     const currentUserId = req.user._id;
 
-    await User.findByIdAndUpdate(currentUserId, {
-      $pull: { bonds: userId }
-    });
-    
-    await User.findByIdAndUpdate(userId, {
-      $pull: { bonds: currentUserId }
-    });
+    await User.findByIdAndUpdate(currentUserId, { $pull: { bonds: userId } });
+    await User.findByIdAndUpdate(userId, { $pull: { bonds: currentUserId } });
 
-    const io = req.app.get('io');
+    const io = req.app.get("io");
     if (io) {
-      io.to(currentUserId.toString()).emit('bond_accepted');
-      io.to(userId.toString()).emit('bond_accepted');
+      io.to(currentUserId.toString()).emit("bond_accepted");
+      io.to(userId.toString()).emit("bond_accepted");
     }
 
-    res.status(200).json({ success: true, message: 'Unbonded successfully' });
+    res.status(200).json({ success: true, message: "Unbonded successfully" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Unchose
+
+// ============================================================================
+// ✅ UNCHOOSE
+// ============================================================================
 export const unchose = async (req, res) => {
   try {
     const { userId } = req.body;
     const currentUserId = req.user._id;
 
-    await User.findByIdAndUpdate(currentUserId, {
-      $pull: { chosen: userId }
-    });
-    
-    await User.findByIdAndUpdate(userId, {
-      $pull: { chosen: currentUserId }
-    });
+    await User.findByIdAndUpdate(currentUserId, { $pull: { chosen: userId } });
+    await User.findByIdAndUpdate(userId, { $pull: { chosen: currentUserId } });
 
-    const io = req.app.get('io');
+    const io = req.app.get("io");
     if (io) {
-      io.to(currentUserId.toString()).emit('chosen_accepted');
-      io.to(userId.toString()).emit('chosen_accepted');
+      io.to(currentUserId.toString()).emit("chosen_accepted");
+      io.to(userId.toString()).emit("chosen_accepted");
     }
 
-    res.status(200).json({ success: true, message: 'Unchosen successfully' });
+    res.status(200).json({ success: true, message: "Unchosen successfully" });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// Send bond request
-export const sendBondRequest = async (req, res) => {
 
-  
+
+// ============================================================================
+// ✅ SEND BOND REQUEST
+// ============================================================================
+export const sendBondRequest = async (req, res) => {
   try {
     const { recipientId } = req.body;
-    
-    // Check if user is authenticated
-    if (!req.user || !req.user._id) {
-      console.log('❌ User not authenticated');
-      return res.status(401).json({ message: 'User not authenticated' });
-    }
-    
     const senderId = req.user._id;
-    console.log('✅ senderId:', senderId);
-    console.log('✅ recipientId:', recipientId);
 
-    // Validate recipientId
     if (!recipientId) {
-      console.log('❌ Recipient ID is missing');
-      return res.status(400).json({ message: 'Recipient ID is required' });
+      return res.status(400).json({ message: "Recipient ID is required" });
     }
 
-    // Check if trying to send request to self
     if (senderId.toString() === recipientId.toString()) {
-      console.log('❌ Trying to send request to self');
-      return res.status(400).json({ message: 'Cannot send request to yourself' });
+      return res.status(400).json({ message: "Cannot send request to yourself" });
     }
 
-    console.log('🔍 Checking for existing request...');
-    // Check if request already exists
     const existingRequest = await Request.findOne({
       sender: senderId,
       recipient: recipientId,
-      type: 'bond',
-      status: 'pending'
+      type: "bond",
+      status: "pending",
     });
 
     if (existingRequest) {
-      console.log('⚠️ Request already exists:', existingRequest._id);
-      return res.status(400).json({ message: 'Request already sent' });
+      return res.status(400).json({ message: "Request already sent" });
     }
 
-    console.log('🔍 Checking if already bonded...');
-    // Check if already bonded
     const user = await User.findById(senderId);
-    if (user.bonds && user.bonds.includes(recipientId)) {
-      console.log('⚠️ Already bonded with this user');
-      return res.status(400).json({ message: 'Already bonded with this user' });
+    if (user.bonds.includes(recipientId)) {
+      return res.status(400).json({ message: "Already bonded" });
     }
 
-    console.log('✅ Creating new request...');
-    const newRequest = new Request({
+    const newRequest = await Request.create({
       sender: senderId,
       recipient: recipientId,
-      type: 'bond',
-      status: 'pending'
+      type: "bond",
+      status: "pending",
     });
 
-    await newRequest.save();
-    console.log('✅ Request saved:', newRequest._id);
+    const senderUser = await User.findById(senderId).select("name username");
 
-    // Get sender info for notification
-    const senderUser = await User.findById(senderId).select('name username');
-    console.log('✅ Sender user:', senderUser);
-
-    console.log('📬 Creating notification...');
-    // Create notification for recipient
     await Notification.create({
       user: recipientId,
-      type: 'bond_request',
+      type: "bond_request",
       message: `${senderUser.name || senderUser.username} sent you a bond request`,
-      sender: senderId
+      sender: senderId,
+      requestId: newRequest._id,
     });
-    // ✅ ADD THESE LINES:
-const io = req.app.get('io'); // Get socket.io instance
-if (io) {
+
+    const io = req.app.get("io");
     if (io) {
-  const socketData = {
-    type: 'bond_request',
-    from: senderUser.name || senderUser.username,
-    senderId: senderId.toString(),
-    message: `${senderUser.name || senderUser.username} sent you a bond request`,
-    requestId: newRequest._id.toString() // ✅ ADD unique ID
-  };
-  
-  console.log("📤 Emitting new_request to:", recipientId.toString());
-  io.to(recipientId.toString()).emit('new_request', socketData);
-}
-  io.to(recipientId.toString()).emit('new_request', {
-    type: 'bond_request',
-    from: senderUser.name || senderUser.username,
-    senderId: senderId.toString(),
-    message: `${senderUser.name || senderUser.username} sent you a bond request`
-  });
-}
-    console.log('✅ Notification created');
-
-    console.log('✅ Bond request sent successfully');
-    console.log('========================================\n');
-
-    res.status(201).json({ 
-      success: true,
-      message: 'Bond request sent successfully',
-      request: newRequest
-    });
-  } catch (error) {
-    console.error('❌ Send bond request error:', error);
-    console.error('❌ Error stack:', error.stack);
-    console.log('========================================\n');
-    
-    res.status(500).json({ 
-      success: false,
-      message: error.message || 'Failed to send bond request'
-    });
-  }
-};
-
-export const sendSpecialFriendRequest = async (req, res) => {
-  console.log('\n🎯 ========== SEND SPECIAL FRIEND REQUEST ==========');
-  console.log('📦 req.body keys:', Object.keys(req.body));
-  console.log('👤 req.user:', req.user ? { id: req.user._id, username: req.user.username } : 'NO USER');
-  
-  try {
-    const { recipientId, image, caption } = req.body;
-    
-    // Check if user is authenticated
-    if (!req.user || !req.user._id) {
-      console.log('❌ User not authenticated');
-      return res.status(401).json({ message: 'User not authenticated' });
-    }
-    
-    const senderId = req.user._id;
-    console.log('✅ senderId:', senderId);
-    console.log('✅ recipientId:', recipientId);
-    console.log('✅ caption length:', caption?.length || 0);
-    console.log('✅ image length:', image?.length || 0);
-
-    // Validate required fields
-    if (!recipientId) {
-      console.log('❌ Recipient ID is missing');
-      return res.status(400).json({ message: 'Recipient ID is required' });
-    }
-
-    if (!image) {
-      console.log('❌ Image is missing');
-      return res.status(400).json({ message: 'Image is required for special friend request' });
-    }
-
-    if (!caption || caption.trim().length === 0) {
-      console.log('❌ Caption is missing or empty');
-      return res.status(400).json({ message: 'Caption is required for special friend request' });
-    }
-
-    if (caption.length > 500) {
-      console.log('❌ Caption too long:', caption.length);
-      return res.status(400).json({ message: 'Caption must be 500 characters or less' });
-    }
-
-    // Check if trying to send request to self
-    if (senderId.toString() === recipientId) {
-      return res.status(400).json({ message: 'Cannot send request to yourself' });
-    }
-
-    // Check if request already exists
-    const existingRequest = await Request.findOne({
-      sender: senderId,
-      recipient: recipientId,
-      type: 'special_friend',
-      status: 'pending'
-    });
-
-    if (existingRequest) {
-      return res.status(400).json({ message: 'Request already sent' });
-    }
-
-    // Check if already in chosen list
-    const user = await User.findById(senderId);
-    if (user.chosen && user.chosen.includes(recipientId)) {
-      return res.status(400).json({ message: 'Already in special friends list' });
-    }
-
-    // Create new request with image and caption
-    const newRequest = new Request({
-      sender: senderId,
-      recipient: recipientId,
-      type: 'special_friend',
-      status: 'pending',
-      image: image,
-      caption: caption.trim()
-    });
-
-    await newRequest.save();
-
-    const senderUser = await User.findById(senderId).select('name username');
-
-    await Notification.create({
-      user: recipientId,
-      type: 'special_friend_request',
-      message: `${senderUser.name || senderUser.username} sent you a special friend request`,
-      sender: senderId,
-      requestId: newRequest._id // ✅ Store request ID in notification
-    });
-
-    const io = req.app.get('io');
-    if (io) {
-      const socketData = {
-        type: 'special_friend_request',
+      io.to(recipientId.toString()).emit("new_request", {
+        type: "bond_request",
         from: senderUser.name || senderUser.username,
         senderId: senderId.toString(),
-        message: `${senderUser.name || senderUser.username} sent you a special friend request`,
-        requestId: newRequest._id.toString()
-      };
-
-      io.to(recipientId.toString()).emit('new_request', socketData);
+        message: `${senderUser.name || senderUser.username} sent you a bond request`,
+        requestId: newRequest._id.toString(),
+      });
     }
 
     res.status(201).json({
       success: true,
-      message: 'Special friend request sent successfully',
-      request: newRequest
+      message: "Bond request sent successfully",
+      request: newRequest,
     });
-
   } catch (error) {
-    console.error('❌ Send special friend request error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to send special friend request'
-    });
+    console.error("❌ Send bond request error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// ✅ NEW: Get full request details (for viewing image and caption)
+
+// ============================================================================
+// ✅ SEND SPECIAL FRIEND REQUEST
+// ============================================================================
+export const sendSpecialFriendRequest = async (req, res) => {
+  try {
+    const { recipientId, image, caption } = req.body;
+    const senderId = req.user._id;
+
+    if (!recipientId || !image || !caption?.trim()) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    if (caption.length > 500) {
+      return res.status(400).json({ message: "Caption must be 500 characters max" });
+    }
+
+    if (senderId.toString() === recipientId) {
+      return res.status(400).json({ message: "Cannot send request to yourself" });
+    }
+
+    const existingRequest = await Request.findOne({
+      sender: senderId,
+      recipient: recipientId,
+      type: "special_friend",
+      status: "pending",
+    });
+
+    if (existingRequest) {
+      return res.status(400).json({ message: "Request already sent" });
+    }
+
+    const user = await User.findById(senderId);
+    if (user.chosen.includes(recipientId)) {
+      return res.status(400).json({ message: "Already a special friend" });
+    }
+
+    const newRequest = await Request.create({
+      sender: senderId,
+      recipient: recipientId,
+      type: "special_friend",
+      status: "pending",
+      image,
+      caption: caption.trim(),
+    });
+
+    const senderUser = await User.findById(senderId).select("name username");
+
+    await Notification.create({
+      user: recipientId,
+      type: "special_friend_request",
+      message: `${senderUser.name || senderUser.username} sent you a special friend request`,
+      sender: senderId,
+      requestId: newRequest._id,
+    });
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(recipientId.toString()).emit("new_request", {
+        type: "special_friend_request",
+        from: senderUser.name || senderUser.username,
+        senderId: senderId.toString(),
+        message: `${senderUser.name || senderUser.username} sent you a special friend request`,
+        requestId: newRequest._id.toString(),
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: "Special friend request sent successfully",
+      request: newRequest,
+    });
+  } catch (error) {
+    console.error("❌ Send special friend request error:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+
+// ============================================================================
+// ✅ GET REQUEST DETAILS
+// ============================================================================
 export const getRequestDetails = async (req, res) => {
   try {
     const { requestId } = req.params;
 
     const request = await Request.findById(requestId)
-      .populate('sender', 'name username profileImage')
-      .populate('recipient', 'name username profileImage');
+      .populate("sender", "name username profileImage")
+      .populate("recipient", "name username profileImage");
 
     if (!request) {
-      return res.status(404).json({ message: 'Request not found' });
+      return res.status(404).json({ message: "Request not found" });
     }
 
-    // Verify user is either sender or recipient
     const userId = req.user._id.toString();
-    if (request.sender._id.toString() !== userId && 
-        request.recipient._id.toString() !== userId) {
-      return res.status(403).json({ message: 'Not authorized to view this request' });
+    if (
+      request.sender._id.toString() !== userId &&
+      request.recipient._id.toString() !== userId
+    ) {
+      return res.status(403).json({ message: "Not authorized" });
     }
 
-    res.status(200).json({
-      success: true,
-      request
-    });
+    res.status(200).json({ success: true, request });
   } catch (error) {
-    console.error('❌ Get request details error:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to fetch request details'
-    });
+    console.error("❌ Get request details error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 
-
+// ============================================================================
+// ✅ GET PENDING REQUESTS
+// ============================================================================
 export const getPendingRequests = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    // Fetch only pending bond and special friend requests
     const requests = await Request.find({
       recipient: userId,
-      status: 'pending',
-      type: { $in: ['bond', 'special_friend'] } // ✅ filter by type
+      status: "pending",
+      type: { $in: ["bond", "special_friend"] },
     })
-    .populate('sender', 'name username profileImage')
-    .sort({ createdAt: -1 });
+      .populate("sender", "name username profileImage")
+      .sort({ createdAt: -1 });
 
-    res.status(200).json({
-      success: true,
-      requests
-    });
+    res.status(200).json({ success: true, requests });
   } catch (error) {
-    console.error('❌ Get pending requests error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: error.message || 'Failed to fetch pending requests'
-    });
+    console.error("❌ Get pending requests error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
 
+// ============================================================================
+// ✅ ACCEPT REQUEST
+// ============================================================================
 export const acceptRequest = async (req, res) => {
   try {
     const { requestId, type } = req.body;
 
     if (!requestId || !type) {
-      return res.status(400).json({ message: 'Request ID and type are required' });
+      return res.status(400).json({ message: "Request ID and type required" });
     }
 
     const request = await Request.findById(requestId);
-    
-    if (!request) {
-      return res.status(404).json({ message: 'Request not found' });
-    }
+    if (!request) return res.status(404).json({ message: "Request not found" });
 
     if (request.recipient.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized to accept this request' });
+      return res.status(403).json({ message: "Not authorized" });
     }
 
-    if (request.status === 'accepted') {
-      return res.status(400).json({ message: 'Request already accepted' });
+    if (request.status === "accepted") {
+      return res.status(400).json({ message: "Already accepted" });
     }
 
-    request.status = 'accepted';
+    request.status = "accepted";
     await request.save();
 
-    if (type === 'bond') {
-      await User.findByIdAndUpdate(
-        req.user._id, 
-        { $addToSet: { bonds: request.sender } }
-      );
-      await User.findByIdAndUpdate(
-        request.sender, 
-        { $addToSet: { bonds: req.user._id } }
-      );
-      
-      const io = req.app.get('io');
-      if (io) {
-        io.to(req.user._id.toString()).emit('bond_accepted', { userId: request.sender.toString() });
-        io.to(request.sender.toString()).emit('bond_accepted', { userId: req.user._id.toString() });
-      }
-    } else if (type === 'special_friend') {
-      await User.findByIdAndUpdate(
-        req.user._id, 
-        { $addToSet: { chosen: request.sender } }
-      );
-      await User.findByIdAndUpdate(
-        request.sender, 
-        { $addToSet: { chosen: req.user._id } }
-      );
-      
-      const io = req.app.get('io');
-      if (io) {
-        io.to(req.user._id.toString()).emit('chosen_accepted', { userId: request.sender.toString() });
-        io.to(request.sender.toString()).emit('chosen_accepted', { userId: req.user._id.toString() });
-      }
+    if (type === "bond") {
+      await User.findByIdAndUpdate(req.user._id, { $addToSet: { bonds: request.sender } });
+      await User.findByIdAndUpdate(request.sender, { $addToSet: { bonds: req.user._id } });
     }
 
-    const accepterUser = await User.findById(req.user._id).select('name username');
+    if (type === "special_friend") {
+      await User.findByIdAndUpdate(req.user._id, { $addToSet: { chosen: request.sender } });
+      await User.findByIdAndUpdate(request.sender, { $addToSet: { chosen: req.user._id } });
+    }
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(req.user._id.toString()).emit(`${type}_accepted`, {
+        userId: request.sender.toString(),
+      });
+      io.to(request.sender.toString()).emit(`${type}_accepted`, {
+        userId: req.user._id.toString(),
+      });
+    }
+
+    const accepterUser = await User.findById(req.user._id).select("name username");
 
     await Notification.create({
       user: request.sender,
       type: `${type}_accepted`,
-      message: `${accepterUser.name || accepterUser.username} accepted your ${type === 'bond' ? 'bond' : 'special friend'} request`,
-      sender: req.user._id
+      message: `${accepterUser.name || accepterUser.username} accepted your request`,
+      sender: req.user._id,
     });
 
-    res.status(200).json({ 
+    res.status(200).json({
       success: true,
-      message: 'Request accepted successfully',
-      request
+      message: "Request accepted successfully",
+      request,
     });
   } catch (error) {
-    console.error('❌ Accept request error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: error.message || 'Failed to accept request'
-    });
+    console.error("❌ Accept request error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Reject request
+
+// ============================================================================
+// ✅ REJECT REQUEST
+// ============================================================================
 export const rejectRequest = async (req, res) => {
   try {
     const { requestId } = req.body;
 
     if (!requestId) {
-      return res.status(400).json({ message: 'Request ID is required' });
+      return res.status(400).json({ message: "Request ID required" });
     }
 
     const request = await Request.findById(requestId);
-    
-    if (!request) {
-      return res.status(404).json({ message: 'Request not found' });
-    }
+    if (!request) return res.status(404).json({ message: "Request not found" });
 
-    // Verify the request is for the current user
     if (request.recipient.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized to reject this request' });
+      return res.status(403).json({ message: "Not authorized" });
     }
 
-    // Update request status
-    request.status = 'rejected';
+    request.status = "rejected";
     await request.save();
 
-    res.status(200).json({ 
-      success: true,
-      message: 'Request rejected successfully'
-    });
+    res.status(200).json({ success: true, message: "Request rejected successfully" });
   } catch (error) {
-    console.error('❌ Reject request error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: error.message || 'Failed to reject request'
-    });
+    console.error("❌ Reject request error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Cancel sent request
+
+// ============================================================================
+// ✅ CANCEL YOUR OWN REQUEST
+// ============================================================================
 export const cancelRequest = async (req, res) => {
   try {
     const { requestId } = req.body;
 
     if (!requestId) {
-      return res.status(400).json({ message: 'Request ID is required' });
+      return res.status(400).json({ message: "Request ID required" });
     }
 
     const request = await Request.findById(requestId);
-    
-    if (!request) {
-      return res.status(404).json({ message: 'Request not found' });
-    }
+    if (!request) return res.status(404).json({ message: "Request not found" });
 
     if (request.sender.toString() !== req.user._id.toString()) {
-      return res.status(403).json({ message: 'Not authorized to cancel this request' });
+      return res.status(403).json({ message: "Not authorized" });
     }
 
     await Request.findByIdAndDelete(requestId);
 
-    res.status(200).json({ 
-      success: true,
-      message: 'Request cancelled successfully'
-    });
+    res.status(200).json({ success: true, message: "Request cancelled successfully" });
   } catch (error) {
-    console.error('❌ Cancel request error:', error);
-    res.status(500).json({ 
-      success: false,
-      message: error.message || 'Failed to cancel request'
-    });
+    console.error("❌ Cancel request error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
+
