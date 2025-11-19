@@ -1,5 +1,5 @@
 // ================================
-// 📁 server.js (Production Ready + Agora Voice Chat Support)
+// 📁 server.js (Production Ready + WebRTC Audio Support)
 // ================================
 
 import express from 'express';
@@ -157,7 +157,7 @@ const io = new Server(server, {
   pingTimeout: 60000,
   pingInterval: 25000,
   upgradeTimeout: 30000,
-  maxHttpBufferSize: 1e8,
+  maxHttpBufferSize: 1e8, // 100MB for audio chunks
 });
 
 server.timeout = 10 * 60 * 1000;
@@ -232,6 +232,7 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     uptime: process.uptime(),
+    voiceChatRooms: voiceChatRooms.size,
   });
 });
 
@@ -252,33 +253,36 @@ const sentInvites = new Set();
 const userSockets = new Map();
 
 // ✅ NEW: Track voice chat state per room
-const voiceChatRooms = new Map(); // room -> { users: Set, startTime: Date }
+const voiceChatRooms = new Map(); // room -> { users: Map(username -> {socketId, isMuted}), startTime: Date }
 
 // ✅ ALL socket.on() handlers MUST be INSIDE this io.on('connection') block
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
 
   // ================================
-  // ✅ AGORA VOICE CHAT HANDLERS (NEW)
+  // ✅ VOICE CHAT HANDLERS (WebRTC Audio Streaming)
   // ================================
   
-  socket.on('voice_chat_joined', ({ room, username }) => {
-    console.log(`🎤 ${username} joined voice chat in room: ${room}`);
+  socket.on('voice_chat_started', ({ room, username }) => {
+    console.log(`🎤 ${username} started voice chat in room: ${room}`);
     
     // Initialize voice chat room if not exists
     if (!voiceChatRooms.has(room)) {
       voiceChatRooms.set(room, {
-        users: new Set(),
+        users: new Map(),
         startTime: new Date(),
       });
     }
     
     // Add user to voice chat
     const voiceRoom = voiceChatRooms.get(room);
-    voiceRoom.users.add(username);
+    voiceRoom.users.set(username, {
+      socketId: socket.id,
+      isMuted: false
+    });
     
     // Notify other users in the room
-    socket.to(room).emit('voice_chat_user_joined', { 
+    socket.to(room).emit('voice_chat_started', { 
       username,
       totalUsers: voiceRoom.users.size 
     });
@@ -286,18 +290,8 @@ io.on('connection', (socket) => {
     console.log(`✅ Voice chat in ${room}: ${voiceRoom.users.size} users connected`);
   });
 
-  socket.on('voice_chat_mute_status', ({ room, username, isMuted }) => {
-    console.log(`${isMuted ? '🔇' : '🎤'} ${username} ${isMuted ? 'muted' : 'unmuted'} in room: ${room}`);
-    
-    // Broadcast mute status to other users in the room
-    socket.to(room).emit('voice_chat_mute_status', { 
-      username, 
-      isMuted 
-    });
-  });
-
-  socket.on('voice_chat_left', ({ room, username }) => {
-    console.log(`👋 ${username} left voice chat in room: ${room}`);
+  socket.on('voice_chat_ended', ({ room, username }) => {
+    console.log(`🔇 ${username} ended voice chat in room: ${room}`);
     
     // Remove user from voice chat
     if (voiceChatRooms.has(room)) {
@@ -305,7 +299,7 @@ io.on('connection', (socket) => {
       voiceRoom.users.delete(username);
       
       // Notify other users
-      socket.to(room).emit('voice_chat_user_left', { 
+      socket.to(room).emit('voice_chat_ended', { 
         username,
         totalUsers: voiceRoom.users.size 
       });
@@ -316,6 +310,38 @@ io.on('connection', (socket) => {
         console.log(`🧹 Voice chat room ${room} cleaned up (empty)`);
       }
     }
+  });
+
+  socket.on('audio_chunk', ({ room, username, audioData, timestamp }) => {
+    // Broadcast audio chunk to all other users in the room
+    socket.to(room).emit('audio_chunk', {
+      username,
+      audioData,
+      timestamp
+    });
+    
+    // Log occasionally to avoid spam (every 50th chunk)
+    if (Math.random() < 0.02) {
+      console.log(`🎵 Audio chunk from ${username} in room ${room}`);
+    }
+  });
+
+  socket.on('voice_mute_state', ({ room, username, isMuted }) => {
+    console.log(`${isMuted ? '🔇' : '🎤'} ${username} ${isMuted ? 'muted' : 'unmuted'} in room: ${room}`);
+    
+    // Update mute state
+    if (voiceChatRooms.has(room)) {
+      const voiceRoom = voiceChatRooms.get(room);
+      if (voiceRoom.users.has(username)) {
+        voiceRoom.users.get(username).isMuted = isMuted;
+      }
+    }
+    
+    // Broadcast mute status to other users in the room
+    socket.to(room).emit('voice_mute_state', { 
+      username, 
+      isMuted 
+    });
   });
 
   // ================================
@@ -798,6 +824,7 @@ io.on('connection', (socket) => {
         console.log(`🧹 Voice chat room ${room} cleaned up (empty after disconnect)`);
       }
     }
+    
     
     if (room) {
       delete rooms[socket.username];
