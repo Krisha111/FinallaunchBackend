@@ -1,5 +1,5 @@
 // ================================
-// 📁 server.js (Production Ready + WebRTC Audio Support)
+// 📁 server.js (Production Ready - Audio/Agora removed)
 // ================================
 
 import express from 'express';
@@ -157,7 +157,7 @@ const io = new Server(server, {
   pingTimeout: 60000,
   pingInterval: 25000,
   upgradeTimeout: 30000,
-  maxHttpBufferSize: 1e8, // 100MB for audio chunks
+  // maxHttpBufferSize removed (was used for audio chunks)
 });
 
 server.timeout = 10 * 60 * 1000;
@@ -232,7 +232,6 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
     uptime: process.uptime(),
-    voiceChatRooms: voiceChatRooms.size,
   });
 });
 
@@ -252,105 +251,10 @@ const connectedUsers = new Map();
 const sentInvites = new Set();
 const userSockets = new Map();
 
-// ✅ NEW: Track voice chat state per room
-const voiceChatRooms = new Map(); // room -> { users: Map(username -> {socketId, isMuted}), startTime: Date }
+// NOTE: Voice/audio handlers removed. Only invites, rooms, messages, sync remain.
 
-// ✅ ALL socket.on() handlers MUST be INSIDE this io.on('connection') block
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
-
-  // ================================
-  // ✅ VOICE CHAT HANDLERS (WebRTC Audio Streaming)
-  // ================================
-  
-  socket.on('voice_chat_started', ({ room, username }) => {
-    console.log(`🎤 ${username} started voice chat in room: ${room}`);
-    
-    // Initialize voice chat room if not exists
-    if (!voiceChatRooms.has(room)) {
-      voiceChatRooms.set(room, {
-        users: new Map(),
-        startTime: new Date(),
-      });
-    }
-    
-    // Add user to voice chat
-    const voiceRoom = voiceChatRooms.get(room);
-    voiceRoom.users.set(username, {
-      socketId: socket.id,
-      isMuted: false
-    });
-    
-    // Notify other users in the room
-    socket.to(room).emit('voice_chat_started', { 
-      username,
-      totalUsers: voiceRoom.users.size 
-    });
-    
-    console.log(`✅ Voice chat in ${room}: ${voiceRoom.users.size} users connected`);
-  });
-
-  socket.on('voice_chat_ended', ({ room, username }) => {
-    console.log(`🔇 ${username} ended voice chat in room: ${room}`);
-    
-    // Remove user from voice chat
-    if (voiceChatRooms.has(room)) {
-      const voiceRoom = voiceChatRooms.get(room);
-      voiceRoom.users.delete(username);
-      
-      // Notify other users
-      socket.to(room).emit('voice_chat_ended', { 
-        username,
-        totalUsers: voiceRoom.users.size 
-      });
-      
-      // Clean up empty voice chat rooms
-      if (voiceRoom.users.size === 0) {
-        voiceChatRooms.delete(room);
-        console.log(`🧹 Voice chat room ${room} cleaned up (empty)`);
-      }
-    }
-  });
-
-  socket.on('audio_chunk', ({ room, username, audioData, timestamp }) => {
-    // Broadcast audio chunk to all other users in the room
-    socket.to(room).emit('audio_chunk', {
-      username,
-      audioData,
-      timestamp
-    });
-    
-    // Log occasionally to avoid spam (every 50th chunk)
-    if (Math.random() < 0.02) {
-      console.log(`🎵 Audio chunk from ${username} in room ${room}`);
-    }
-  });
-
-  socket.on('voice_mute_state', ({ room, username, isMuted }) => {
-    console.log(`${isMuted ? '🔇' : '🎤'} ${username} ${isMuted ? 'muted' : 'unmuted'} in room: ${room}`);
-    
-    // Update mute state
-    if (voiceChatRooms.has(room)) {
-      const voiceRoom = voiceChatRooms.get(room);
-      if (voiceRoom.users.has(username)) {
-        voiceRoom.users.get(username).isMuted = isMuted;
-      }
-    }
-    
-    // Broadcast mute status to other users in the room
-    socket.to(room).emit('voice_mute_state', { 
-      username, 
-      isMuted 
-    });
-  });
-
-  // ================================
-  // ✅ ICE CANDIDATE HANDLER (for future WebRTC if needed)
-  // ================================
-  socket.on('ice_candidate', ({ room, candidate, from }) => {
-    console.log(`🧊 ICE candidate from ${from} in room ${room}`);
-    socket.to(room).emit('ice_candidate', { candidate, from });
-  });
 
   // ================================
   // ✅ CANCEL INVITE HANDLER
@@ -759,13 +663,6 @@ io.on('connection', (socket) => {
   // ================================
   socket.on('admin_left_room', ({ room }) => {
     const adminName = socket.username;
-    
-    // Clean up voice chat for this room
-    if (voiceChatRooms.has(room)) {
-      voiceChatRooms.delete(room);
-      console.log(`🧹 Voice chat room ${room} cleaned up (admin left)`);
-    }
-    
     io.to(room).emit('admin_left', { adminName });
     socket.leave(room);
     delete admins[room];
@@ -814,18 +711,6 @@ io.on('connection', (socket) => {
     const room = rooms[socket.username];
     const wasAdmin = admins[room] === socket.username;
     
-    // Clean up voice chat if user was in one
-    if (room && voiceChatRooms.has(room)) {
-      const voiceRoom = voiceChatRooms.get(room);
-      voiceRoom.users.delete(socket.username);
-      
-      if (voiceRoom.users.size === 0) {
-        voiceChatRooms.delete(room);
-        console.log(`🧹 Voice chat room ${room} cleaned up (empty after disconnect)`);
-      }
-    }
-    
-    
     if (room) {
       delete rooms[socket.username];
       if (wasAdmin) {
@@ -863,26 +748,6 @@ setInterval(() => {
     `🧹 Cleaned old invites. Current pending: ${pendingInvites.size} users`
   );
 }, 60 * 60 * 1000); // Run every hour
-
-// ================================
-// ✅ CLEANUP OLD VOICE CHAT ROOMS (Periodic Task)
-// ================================
-setInterval(() => {
-  const now = new Date();
-  const oneHourMs = 60 * 60 * 1000;
-
-  voiceChatRooms.forEach((voiceRoom, roomName) => {
-    const duration = now - voiceRoom.startTime;
-    
-    // Clean up rooms older than 1 hour with no users
-    if (voiceRoom.users.size === 0 && duration > oneHourMs) {
-      voiceChatRooms.delete(roomName);
-      console.log(`🧹 Cleaned up stale voice chat room: ${roomName}`);
-    }
-  });
-  
-  console.log(`🎤 Active voice chat rooms: ${voiceChatRooms.size}`);
-}, 30 * 60 * 1000); // Run every 30 minutes
 
 // ================================
 // ✅ Root Test Route
@@ -970,10 +835,6 @@ app.get('/', (req, res) => {
             <div class="stat-label">Active Rooms</div>
           </div>
           <div class="stat-box">
-            <div class="stat-number">${voiceChatRooms.size}</div>
-            <div class="stat-label">Voice Chats</div>
-          </div>
-          <div class="stat-box">
             <div class="stat-number">${pendingInvites.size}</div>
             <div class="stat-label">Pending Invites</div>
           </div>
@@ -985,78 +846,9 @@ app.get('/', (req, res) => {
 });
 
 // ================================
-// ✅ AGORA TOKEN GENERATION ENDPOINT (Optional - For Production)
+// ✅ AGORA TOKEN GENERATION ENDPOINT (Removed - Audio/Agora disabled)
 // ================================
-// Uncomment this section if you want to generate Agora tokens server-side
-// You'll need to install: npm install agora-access-token
-
-/*
-import { RtcTokenBuilder, RtcRole } from 'agora-access-token';
-
-const AGORA_APP_ID = process.env.AGORA_APP_ID || '1991693dedff48b594ad5077f75464e6';
-const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE || 'your_agora_app_certificate';
-
-app.get('/api/agora/token', (req, res) => {
-  try {
-    const { channelName, uid } = req.query;
-    
-    if (!channelName || !uid) {
-      return res.status(400).json({ 
-        error: 'Missing required parameters: channelName and uid' 
-      });
-    }
-
-    // Token expires in 1 hour
-    const expirationTimeInSeconds = 3600;
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
-
-    // Build token
-    const token = RtcTokenBuilder.buildTokenWithUid(
-      AGORA_APP_ID,
-      AGORA_APP_CERTIFICATE,
-      channelName,
-      parseInt(uid),
-      RtcRole.PUBLISHER,
-      privilegeExpiredTs
-    );
-
-    console.log(`🎫 Generated Agora token for channel: ${channelName}, uid: ${uid}`);
-
-    res.json({
-      token,
-      appId: AGORA_APP_ID,
-      channelName,
-      uid: parseInt(uid),
-      expiresAt: privilegeExpiredTs
-    });
-  } catch (error) {
-    console.error('❌ Error generating Agora token:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate token',
-      message: error.message 
-    });
-  }
-});
-*/
-
-// ================================
-// ✅ VOICE CHAT STATS ENDPOINT
-// ================================
-app.get('/api/voice-chat/stats', (req, res) => {
-  const stats = {
-    totalRooms: voiceChatRooms.size,
-    rooms: Array.from(voiceChatRooms.entries()).map(([roomName, voiceRoom]) => ({
-      roomName,
-      userCount: voiceRoom.users.size,
-      users: Array.from(voiceRoom.users),
-      duration: Math.floor((new Date() - voiceRoom.startTime) / 1000), // in seconds
-      startTime: voiceRoom.startTime
-    }))
-  };
-  
-  res.json(stats);
-});
+// (Previously present block removed intentionally)
 
 // ================================
 // ✅ 404 Handler
@@ -1137,20 +929,18 @@ server.listen(PORT, HOST, () => {
     }`
   );
   console.log(`🔌 Socket.IO: Active`);
-  console.log(`🎤 Voice Chat: Ready (Agora Integration)`);
   console.log('='.repeat(50) + '\n');
   console.log('📡 Active Features:');
   console.log('   ✅ User Registration & Authentication');
   console.log('   ✅ Real-time Reel Synchronization');
   console.log('   ✅ Text Chat & Media Sharing');
-  console.log('   ✅ Voice Chat (Agora)');
   console.log('   ✅ Invite System with Expiration');
   console.log('   ✅ Admin/Viewer Roles');
   console.log('='.repeat(50) + '\n');
 });
 
 // Export io and connectedUsers so other modules can access them
-export { io, connectedUsers, voiceChatRooms };
+export { io, connectedUsers };
 
 // ================================
 // ✅ Unhandled Promise Rejection
