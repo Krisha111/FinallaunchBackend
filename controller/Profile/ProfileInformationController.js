@@ -243,50 +243,43 @@ console.log("🖼️ Profile Image URL being sent to frontenddddddd:", userObjec
 // -------------------- Update Profile --------------------
 export const updateProfile = async (req, res) => {
   try {
-    const body = req.body || {};
-    const { name, bio } = body;
+    const { username } = req.params;
 
-    let imageUrl = body.profileImage;
+    let updateData = {
+      name: req.body.name,
+      bio: req.body.bio,
+    };
 
-    // ✅ Handle file upload
+    // ❗ Ensure empty fields don't overwrite
+    if (!updateData.name) delete updateData.name;
+    if (!updateData.bio) delete updateData.bio;
+
+    // -----------------------------
+    // CASE 1: FILE UPLOAD (multipart/form-data)
+    // -----------------------------
     if (req.file) {
-        imageUrl = req.file.path;
-      console.log("🖼️ New profile image uploaded:", imageUrl);
-    } 
-    // ✅ Convert any existing URL to HTTPS
-    else if (imageUrl) {
-      imageUrl = getSecureUrl(imageUrl);
-      console.log("🔄 Converted existing URL:", imageUrl);
+      const imageUrl = req.file.path; // FIXED — properly declared
+      updateData.profileImage = imageUrl;
     }
 
+    // -----------------------------
+    // UPDATE USER
+    // -----------------------------
     const updatedUser = await User.findOneAndUpdate(
-      { username: req.params.username },
-      {
-        ...(name !== undefined && { name }),
-        ...(bio !== undefined && { bio }),
-        ...(imageUrl !== undefined && { profileImage: imageUrl }),
-      },
+      { username },
+      updateData,
       { new: true }
     );
 
-    if (!updatedUser) return res.status(404).json({ error: "User not found" });
-
-    const userObject = updatedUser.toObject();
-
-    // ✅ Force HTTPS on output (safety check)
-    if (userObject.profileImage) {
-      userObject.profileImage = getSecureUrl(userObject.profileImage);
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
     }
 
-    console.log("✅ Profile updated for:", req.params.username);
-    console.log("🖼️ Final profile image URL:", userObject.profileImage);
-    console.log("💾 Saved to DB:", imageUrl);
+    return res.status(200).json(updatedUser);
 
-    res.json(userObject);
-
-  } catch (err) {
-    console.error("Error updating profile:", err);
-    res.status(500).json({ error: err.message });
+  } catch (error) {
+    console.error("🔥 Profile Update Error:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
