@@ -98,15 +98,14 @@ export const commentOnReel = async (req, res) => {
 
     // populate user info before sending to frontend
     await reel.populate("comments.user", "username profileImage");
-    await reel.populate("user", "username profileImage"); // ✅ Also populate reel owner
+    await reel.populate("user", "username profileImage");
 
     res.json(reel);
   } catch (error) {
     console.error("Error adding comment:", error);
     res.status(500).json({ message: "Server error while adding comment" });
   }
-};
-// ✅ Get all reels (from all users)
+};// ✅ Get all reels (from all users)
 export const getAllReels = async (req, res) => {
   try {
     const reels = await Reel.find({})
@@ -315,25 +314,17 @@ export const getSavedReels = async (req, res) => {
  */
 // ✅ Add comment to reel AND send notification
 export const addCommentToReel = async (req, res) => {
-  console.log('\n💬 ========== ADD COMMENT TO REEL ==========');
-  
   try {
     const { reelId } = req.params;
     const { text } = req.body;
     const commenterId = req.user._id;
 
-    console.log('📝 ReelId:', reelId);
-    console.log('📝 Commenter:', commenterId);
-    console.log('📝 Comment text:', text);
-
-    // Find the reel
     const reel = await Reel.findById(reelId);
     
     if (!reel) {
       return res.status(404).json({ message: 'Reel not found' });
     }
 
-    // Create comment object
     const newComment = {
       user: commenterId,
       text: text,
@@ -341,53 +332,17 @@ export const addCommentToReel = async (req, res) => {
       createdAt: new Date()
     };
 
-    // Add comment to reel
     reel.comments.push(newComment);
+    
+    // ✅ UPDATE COMMENT COUNT
+    reel.commentCount = reel.comments.length;
+    
     await reel.save();
 
-    // Populate user info
     await reel.populate('comments.user', 'username profileImage');
     await reel.populate('user', 'username profileImage');
 
-    // ✅ SEND NOTIFICATION (only if not commenting on own post)
-    if (reel.user._id.toString() !== commenterId.toString()) {
-      try {
-        const commenter = await User.findById(commenterId).select('name username');
-        
-        // Create notification in database
-        await Notification.create({
-          user: reel.user._id,
-          type: 'post_comment',
-          message: `${commenter.name || commenter.username} commented on your post`,
-          sender: commenterId,
-          postId: reelId
-        });
-
-        // ✅ Emit socket event
-        const io = req.app.get('io');
-        if (io) {
-          const preview = text.length > 50 ? `${text.substring(0, 50)}...` : text;
-          
-          const socketData = {
-            type: 'post_comment',
-            from: commenter.name || commenter.username,
-            senderId: commenterId.toString(),
-            message: `${commenter.name || commenter.username} commented: ${preview}`,
-            postId: reelId,
-            timestamp: Date.now()
-          };
-          
-          console.log('📤 Emitting comment notification to:', reel.user._id.toString());
-          io.to(reel.user._id.toString()).emit('new_notification', socketData);
-        }
-      } catch (notifError) {
-        console.error('⚠️ Failed to send notification:', notifError);
-        // Don't fail the comment if notification fails
-      }
-    }
-
-    console.log('✅ Comment added successfully');
-    console.log('========================================\n');
+    // Notification logic (keep your existing code here)
 
     res.status(200).json({ 
       success: true,
@@ -401,6 +356,93 @@ export const addCommentToReel = async (req, res) => {
     });
   }
 };
+// export const addCommentToReel = async (req, res) => {
+//   console.log('\n💬 ========== ADD COMMENT TO REEL ==========');
+  
+//   try {
+//     const { reelId } = req.params;
+//     const { text } = req.body;
+//     const commenterId = req.user._id;
+
+//     console.log('📝 ReelId:', reelId);
+//     console.log('📝 Commenter:', commenterId);
+//     console.log('📝 Comment text:', text);
+
+//     // Find the reel
+//     const reel = await Reel.findById(reelId);
+    
+//     if (!reel) {
+//       return res.status(404).json({ message: 'Reel not found' });
+//     }
+
+//     // Create comment object
+//     const newComment = {
+//       user: commenterId,
+//       text: text,
+//       timestamp: new Date(),
+//       createdAt: new Date()
+//     };
+
+//     // Add comment to reel
+//     reel.comments.push(newComment);
+//     await reel.save();
+
+//     // Populate user info
+//     await reel.populate('comments.user', 'username profileImage');
+//     await reel.populate('user', 'username profileImage');
+
+//     // ✅ SEND NOTIFICATION (only if not commenting on own post)
+//     if (reel.user._id.toString() !== commenterId.toString()) {
+//       try {
+//         const commenter = await User.findById(commenterId).select('name username');
+        
+//         // Create notification in database
+//         await Notification.create({
+//           user: reel.user._id,
+//           type: 'post_comment',
+//           message: `${commenter.name || commenter.username} commented on your post`,
+//           sender: commenterId,
+//           postId: reelId
+//         });
+
+//         // ✅ Emit socket event
+//         const io = req.app.get('io');
+//         if (io) {
+//           const preview = text.length > 50 ? `${text.substring(0, 50)}...` : text;
+          
+//           const socketData = {
+//             type: 'post_comment',
+//             from: commenter.name || commenter.username,
+//             senderId: commenterId.toString(),
+//             message: `${commenter.name || commenter.username} commented: ${preview}`,
+//             postId: reelId,
+//             timestamp: Date.now()
+//           };
+          
+//           console.log('📤 Emitting comment notification to:', reel.user._id.toString());
+//           io.to(reel.user._id.toString()).emit('new_notification', socketData);
+//         }
+//       } catch (notifError) {
+//         console.error('⚠️ Failed to send notification:', notifError);
+//         // Don't fail the comment if notification fails
+//       }
+//     }
+
+//     console.log('✅ Comment added successfully');
+//     console.log('========================================\n');
+
+//     res.status(200).json({ 
+//       success: true,
+//       reel: reel 
+//     });
+//   } catch (error) {
+//     console.error('❌ Comment error:', error);
+//     res.status(500).json({ 
+//       success: false,
+//       message: error.message 
+//     });
+//   }
+// };
 // export const addCommentToReel = async (req, res) => {
 //   try {
 //     const { reelId } = req.params;
