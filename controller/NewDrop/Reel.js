@@ -41,6 +41,36 @@ export const getReelsByUserId = async (req, res) => {
   }
 };
 
+// export const commentOnReel = async (req, res) => {
+//   try {
+//     const { text } = req.body;
+//     const { reelId } = req.params;
+
+//     if (!req.user) {
+//       return res.status(401).json({ message: "Not authorized" });
+//     }
+
+//     const reel = await Reel.findById(reelId);
+//     if (!reel) return res.status(404).json({ message: "Reel not found" });
+
+//     const newComment = {
+//       user: req.user._id, // ✅ must be the user's ObjectId
+//       text,
+//       createdAt: new Date(),
+//     };
+
+//     reel.comments.push(newComment);
+//     await reel.save();
+
+//     // populate user info before sending to frontend
+//     await reel.populate("comments.user", "username profileImage");
+
+//     res.json(reel);
+//   } catch (error) {
+//     console.error("Error adding comment:", error);
+//     res.status(500).json({ message: "Server error while adding comment" });
+//   }
+// };
 export const commentOnReel = async (req, res) => {
   try {
     const { text } = req.body;
@@ -54,16 +84,21 @@ export const commentOnReel = async (req, res) => {
     if (!reel) return res.status(404).json({ message: "Reel not found" });
 
     const newComment = {
-      user: req.user._id, // ✅ must be the user's ObjectId
+      user: req.user._id,
       text,
       createdAt: new Date(),
     };
 
     reel.comments.push(newComment);
+    
+    // ✅ UPDATE COMMENT COUNT
+    reel.commentCount = reel.comments.length;
+    
     await reel.save();
 
     // populate user info before sending to frontend
     await reel.populate("comments.user", "username profileImage");
+    await reel.populate("user", "username profileImage"); // ✅ Also populate reel owner
 
     res.json(reel);
   } catch (error) {
@@ -71,7 +106,6 @@ export const commentOnReel = async (req, res) => {
     res.status(500).json({ message: "Server error while adding comment" });
   }
 };
-
 // ✅ Get all reels (from all users)
 export const getAllReels = async (req, res) => {
   try {
