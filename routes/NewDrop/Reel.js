@@ -71,6 +71,8 @@ router.get('/user/:userId', getReelsByUserId);
  */
 router.get('/all', getAllReels);
 
+router.delete('/:reelId', protect, deleteReel);
+
 /**
  * @route   POST /api/reels/newReelDrop
  * @desc    Create a new reel with both video/image and poster

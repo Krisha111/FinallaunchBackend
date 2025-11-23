@@ -41,36 +41,30 @@ export const getReelsByUserId = async (req, res) => {
   }
 };
 
-// export const commentOnReel = async (req, res) => {
-//   try {
-//     const { text } = req.body;
-//     const { reelId } = req.params;
+export const deleteReel = async (req, res) => {
+  try {
+    const { reelId } = req.params;
+    const userId = req.user._id;
 
-//     if (!req.user) {
-//       return res.status(401).json({ message: "Not authorized" });
-//     }
+    const reel = await Reel.findById(reelId);
+    
+    if (!reel) {
+      return res.status(404).json({ message: "Reel not found" });
+    }
 
-//     const reel = await Reel.findById(reelId);
-//     if (!reel) return res.status(404).json({ message: "Reel not found" });
+    // Check if user owns this reel
+    if (reel.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Not authorized to delete this reel" });
+    }
 
-//     const newComment = {
-//       user: req.user._id, // ✅ must be the user's ObjectId
-//       text,
-//       createdAt: new Date(),
-//     };
+    await Reel.findByIdAndDelete(reelId);
 
-//     reel.comments.push(newComment);
-//     await reel.save();
-
-//     // populate user info before sending to frontend
-//     await reel.populate("comments.user", "username profileImage");
-
-//     res.json(reel);
-//   } catch (error) {
-//     console.error("Error adding comment:", error);
-//     res.status(500).json({ message: "Server error while adding comment" });
-//   }
-// };
+    res.status(200).json({ message: "Reel deleted successfully" });
+  } catch (error) {
+    console.error("❌ Delete error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
 export const commentOnReel = async (req, res) => {
   try {
     const { text } = req.body;
