@@ -657,13 +657,46 @@ io.on('connection', (socket) => {
       socket.to(room).emit('reel_play_state', { index, isPlaying });
     }
   });
+// Add this new event handler in your socket configuration
+socket.on('request_room_reel_order', ({ room }, callback) => {
+  console.log(`📋 Room ${room} requesting reel order`);
+  
+  // Check if this room already has a reel order stored
+  if (!global.roomReelOrders) {
+    global.roomReelOrders = {};
+  }
+  
+  if (global.roomReelOrders[room]) {
+    // Return existing order for this room
+    callback({ reelOrder: global.roomReelOrders[room] });
+  } else {
+    // No order exists yet, admin will create it
+    callback({ reelOrder: null });
+  }
+});
 
+socket.on('set_room_reel_order', ({ room, reelOrder }) => {
+  console.log(`🔄 Setting reel order for room ${room}`);
+  
+  if (!global.roomReelOrders) {
+    global.roomReelOrders = {};
+  }
+  
+  // Store the reel order for this room
+  global.roomReelOrders[room] = reelOrder;
+  
+  // Broadcast to all users in the room
+  io.to(room).emit('room_reel_order_set', { reelOrder });
+});
   // ================================
   // ✅ ADMIN LEFT ROOM
   // ================================
   socket.on('admin_left_room', ({ room }) => {
+     if (global.roomReelOrders) {
+    delete global.roomReelOrders[room];
+  }
     const adminName = socket.username;
-    io.to(room).emit('admin_left', { adminName });
+     io.to(room).emit('admin_left', { adminName: socket.username });
     socket.leave(room);
     delete admins[room];
     delete roomStates[room];
