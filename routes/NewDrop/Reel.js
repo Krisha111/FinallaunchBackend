@@ -15,6 +15,7 @@ import {
   getAllReels,
   commentOnReel,
   getReelsByUserId,
+  deleteReel
 } from '../../controller/NewDrop/Reel.js';
 import { protect } from '../../MiddleWare/authMiddleware.js';
 
