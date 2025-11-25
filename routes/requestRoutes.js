@@ -1,3 +1,20 @@
+import express from 'express';
+import { protect } from '../MiddleWare/authMiddleware.js';
+import {
+  sendBondRequest,
+  sendSpecialFriendRequest,
+  getPendingRequests,
+  getSentRequests,
+  acceptRequest,
+  rejectRequest,
+  cancelRequest,
+  getRequestDetails // ✅ NEW
+  ,unbond, unchose, 
+  getReceivedAcceptedRequests, // ✅ ADD THIS
+  sendLikeNotification,
+  sendCommentNotification,
+  getNotifications
+} from '../controller/requestController.js';
 const router = express.Router();
 
 // ✅ NOTIFICATIONS ROUTES (Keep at top)
