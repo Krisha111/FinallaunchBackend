@@ -258,8 +258,12 @@ export const updateProfile = async (req, res) => {
     // CASE 1: FILE UPLOAD (multipart/form-data)
     // -----------------------------
     if (req.file) {
-      const imageUrl = req.file.path; // FIXED — properly declared
+      const imageUrl = req.file.path;
       updateData.profileImage = imageUrl;
+    }
+    // ✅ ADD THIS: Handle explicit null to remove image
+    else if (req.body.profileImage === null || req.body.profileImage === "null") {
+      updateData.profileImage = null;
     }
 
     // -----------------------------
