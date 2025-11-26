@@ -40,21 +40,21 @@ export const sendLikeNotification = async (req, res) => {
   console.log('\n🔔 ========== SEND LIKE NOTIFICATION ==========');
   console.log('📦 Request body:', req.body);
   console.log('👤 Liker ID (from auth):', req.user?._id);
-  
+
   try {
     const { postId, postOwnerId } = req.body;
     const likerId = req.user._id;
-    
+
     // Don't send notification if user likes their own post
     if (likerId.toString() === postOwnerId.toString()) {
       console.log('⚠️ Self-like detected, skipping notification');
       return res.status(200).json({ message: 'Self-like, no notification sent' });
     }
-    
+
     console.log('📝 Fetching liker info...');
     const liker = await User.findById(likerId).select('name username');
     console.log('✅ Liker:', liker);
-    
+
     // Create notification in database
     console.log('💾 Creating notification in database...');
     const notification = await Notification.create({
@@ -65,17 +65,17 @@ export const sendLikeNotification = async (req, res) => {
       postId: postId
     });
     console.log('✅ Notification created:', notification._id);
-    
+
     // ✅ Get socket.io instance
     const io = req.app.get('io');
     if (!io) {
       console.error('❌ Socket.io instance not found on app!');
       return res.status(500).json({ message: 'Socket.io not configured' });
     }
-    
+
     console.log('📡 Socket.io instance found');
     console.log('📤 Emitting to room:', postOwnerId.toString());
-    
+
     // ✅ Emit socket event to post owner's room
     const socketData = {
       type: 'post_like',
@@ -85,13 +85,13 @@ export const sendLikeNotification = async (req, res) => {
       postId: postId,
       timestamp: Date.now()
     };
-    
+
     console.log('📨 Socket data:', socketData);
     io.to(postOwnerId.toString()).emit('new_notification', socketData);
     console.log('✅ Socket event emitted successfully');
-    
+
     console.log('========================================\n');
-    res.status(200).json({ 
+    res.status(200).json({
       success: true,
       message: 'Notification sent',
       notificationId: notification._id
@@ -100,9 +100,9 @@ export const sendLikeNotification = async (req, res) => {
     console.error('❌ Send like notification error:', error);
     console.error('❌ Error stack:', error.stack);
     console.log('========================================\n');
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 };
@@ -112,21 +112,21 @@ export const sendCommentNotification = async (req, res) => {
   console.log('\n💬 ========== SEND COMMENT NOTIFICATION ==========');
   console.log('📦 Request body:', req.body);
   console.log('👤 Commenter ID (from auth):', req.user?._id);
-  
+
   try {
     const { postId, postOwnerId, commentText } = req.body;
     const commenterId = req.user._id;
-    
+
     // Don't send notification if user comments on their own post
     if (commenterId.toString() === postOwnerId.toString()) {
       console.log('⚠️ Self-comment detected, skipping notification');
       return res.status(200).json({ message: 'Self-comment, no notification sent' });
     }
-    
+
     console.log('📝 Fetching commenter info...');
     const commenter = await User.findById(commenterId).select('name username');
     console.log('✅ Commenter:', commenter);
-    
+
     // Create notification in database
     console.log('💾 Creating notification in database...');
     const notification = await Notification.create({
@@ -137,22 +137,22 @@ export const sendCommentNotification = async (req, res) => {
       postId: postId
     });
     console.log('✅ Notification created:', notification._id);
-    
+
     // ✅ Get socket.io instance
     const io = req.app.get('io');
     if (!io) {
       console.error('❌ Socket.io instance not found on app!');
       return res.status(500).json({ message: 'Socket.io not configured' });
     }
-    
+
     console.log('📡 Socket.io instance found');
     console.log('📤 Emitting to room:', postOwnerId.toString());
-    
+
     // ✅ Emit socket event to post owner's room
-    const preview = commentText.length > 50 
-      ? `${commentText.substring(0, 50)}...` 
+    const preview = commentText.length > 50
+      ? `${commentText.substring(0, 50)}...`
       : commentText;
-      
+
     const socketData = {
       type: 'post_comment',
       from: commenter.name || commenter.username,
@@ -161,13 +161,13 @@ export const sendCommentNotification = async (req, res) => {
       postId: postId,
       timestamp: Date.now()
     };
-    
+
     console.log('📨 Socket data:', socketData);
     io.to(postOwnerId.toString()).emit('new_notification', socketData);
     console.log('✅ Socket event emitted successfully');
-    
+
     console.log('========================================\n');
-    res.status(200).json({ 
+    res.status(200).json({
       success: true,
       message: 'Notification sent',
       notificationId: notification._id
@@ -176,9 +176,9 @@ export const sendCommentNotification = async (req, res) => {
     console.error('❌ Send comment notification error:', error);
     console.error('❌ Error stack:', error.stack);
     console.log('========================================\n');
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 };
@@ -243,7 +243,7 @@ export const unbond = async (req, res) => {
     await User.findByIdAndUpdate(currentUserId, {
       $pull: { bonds: userId }
     });
-    
+
     await User.findByIdAndUpdate(userId, {
       $pull: { bonds: currentUserId }
     });
@@ -269,7 +269,7 @@ export const unchose = async (req, res) => {
     await User.findByIdAndUpdate(currentUserId, {
       $pull: { chosen: userId }
     });
-    
+
     await User.findByIdAndUpdate(userId, {
       $pull: { chosen: currentUserId }
     });
@@ -288,16 +288,16 @@ export const unchose = async (req, res) => {
 // Send bond request
 export const sendBondRequest = async (req, res) => {
 
-  
+
   try {
     const { recipientId } = req.body;
-    
+
     // Check if user is authenticated
     if (!req.user || !req.user._id) {
       console.log('❌ User not authenticated');
       return res.status(401).json({ message: 'User not authenticated' });
     }
-    
+
     const senderId = req.user._id;
     console.log('✅ senderId:', senderId);
     console.log('✅ recipientId:', recipientId);
@@ -360,33 +360,33 @@ export const sendBondRequest = async (req, res) => {
       sender: senderId
     });
     // ✅ ADD THESE LINES:
-const io = req.app.get('io'); // Get socket.io instance
-if (io) {
+    const io = req.app.get('io'); // Get socket.io instance
     if (io) {
-  const socketData = {
-    type: 'bond_request',
-    from: senderUser.name || senderUser.username,
-    senderId: senderId.toString(),
-    message: `${senderUser.name || senderUser.username} sent you a bond request`,
-    requestId: newRequest._id.toString() // ✅ ADD unique ID
-  };
-  
-  console.log("📤 Emitting new_request to:", recipientId.toString());
-  io.to(recipientId.toString()).emit('new_request', socketData);
-}
-  io.to(recipientId.toString()).emit('new_request', {
-    type: 'bond_request',
-    from: senderUser.name || senderUser.username,
-    senderId: senderId.toString(),
-    message: `${senderUser.name || senderUser.username} sent you a bond request`
-  });
-}
+      if (io) {
+        const socketData = {
+          type: 'bond_request',
+          from: senderUser.name || senderUser.username,
+          senderId: senderId.toString(),
+          message: `${senderUser.name || senderUser.username} sent you a bond request`,
+          requestId: newRequest._id.toString() // ✅ ADD unique ID
+        };
+
+        console.log("📤 Emitting new_request to:", recipientId.toString());
+        io.to(recipientId.toString()).emit('new_request', socketData);
+      }
+      io.to(recipientId.toString()).emit('new_request', {
+        type: 'bond_request',
+        from: senderUser.name || senderUser.username,
+        senderId: senderId.toString(),
+        message: `${senderUser.name || senderUser.username} sent you a bond request`
+      });
+    }
     console.log('✅ Notification created');
 
     console.log('✅ Bond request sent successfully');
     console.log('========================================\n');
 
-    res.status(201).json({ 
+    res.status(201).json({
       success: true,
       message: 'Bond request sent successfully',
       request: newRequest
@@ -395,8 +395,8 @@ if (io) {
     console.error('❌ Send bond request error:', error);
     console.error('❌ Error stack:', error.stack);
     console.log('========================================\n');
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       success: false,
       message: error.message || 'Failed to send bond request'
     });
@@ -407,16 +407,16 @@ export const sendSpecialFriendRequest = async (req, res) => {
   console.log('\n🎯 ========== SEND SPECIAL FRIEND REQUEST ==========');
   console.log('📦 req.body keys:', Object.keys(req.body));
   console.log('👤 req.user:', req.user ? { id: req.user._id, username: req.user.username } : 'NO USER');
-  
+
   try {
     const { recipientId, image, caption } = req.body;
-    
+
     // Check if user is authenticated
     if (!req.user || !req.user._id) {
       console.log('❌ User not authenticated');
       return res.status(401).json({ message: 'User not authenticated' });
     }
-    
+
     const senderId = req.user._id;
     console.log('✅ senderId:', senderId);
     console.log('✅ recipientId:', recipientId);
@@ -523,7 +523,7 @@ export const getRequestDetails = async (req, res) => {
   console.log('📦 Request params:', req.params);
   console.log('🆔 Request ID:', req.params.requestId);
   console.log('👤 User ID:', req.user?._id);
-  
+
   try {
     const { requestId } = req.params;
 
@@ -533,7 +533,7 @@ export const getRequestDetails = async (req, res) => {
     }
 
     console.log('🔍 Searching for request:', requestId);
-    
+
     const request = await Request.findById(requestId)
       .populate('sender', 'name username profileImage')
       .populate('recipient', 'name username profileImage');
@@ -557,9 +557,9 @@ export const getRequestDetails = async (req, res) => {
     console.log('   User ID:', userId);
     console.log('   Sender ID:', request.sender._id.toString());
     console.log('   Recipient ID:', request.recipient._id.toString());
-    
-    if (request.sender._id.toString() !== userId && 
-        request.recipient._id.toString() !== userId) {
+
+    if (request.sender._id.toString() !== userId &&
+      request.recipient._id.toString() !== userId) {
       console.log('❌ User not authorized');
       return res.status(403).json({ message: 'Not authorized to view this request' });
     }
@@ -577,7 +577,7 @@ export const getRequestDetails = async (req, res) => {
     console.error('❌ Error name:', error.name);
     console.error('❌ Error message:', error.message);
     console.log('========================================\n');
-    
+
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to fetch request details'
@@ -595,8 +595,8 @@ export const getPendingRequests = async (req, res) => {
       status: 'pending',
       type: { $in: ['bond', 'special_friend'] } // ✅ filter by type
     })
-    .populate('sender', 'name username profileImage')
-    .sort({ createdAt: -1 });
+      .populate('sender', 'name username profileImage')
+      .sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -604,14 +604,14 @@ export const getPendingRequests = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Get pending requests error:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
       message: error.message || 'Failed to fetch pending requests'
     });
   }
 };
 
-
+// ✅ Updated acceptRequest
 export const acceptRequest = async (req, res) => {
   try {
     const { requestId, type } = req.body;
@@ -651,6 +651,10 @@ export const acceptRequest = async (req, res) => {
       if (io) {
         io.to(req.user._id.toString()).emit('bond_accepted', { userId: request.sender.toString() });
         io.to(request.sender.toString()).emit('bond_accepted', { userId: req.user._id.toString() });
+        
+        // ✅ NEW: Remove from both users' notifications
+        io.to(req.user._id.toString()).emit('request_removed', { requestId: requestId.toString() });
+        io.to(request.sender.toString()).emit('request_removed', { requestId: requestId.toString() });
       }
     } else if (type === 'special_friend') {
       await User.findByIdAndUpdate(
@@ -666,6 +670,10 @@ export const acceptRequest = async (req, res) => {
       if (io) {
         io.to(req.user._id.toString()).emit('chosen_accepted', { userId: request.sender.toString() });
         io.to(request.sender.toString()).emit('chosen_accepted', { userId: req.user._id.toString() });
+        
+        // ✅ NEW: Remove from both users' notifications
+        io.to(req.user._id.toString()).emit('request_removed', { requestId: requestId.toString() });
+        io.to(request.sender.toString()).emit('request_removed', { requestId: requestId.toString() });
       }
     }
 
@@ -692,7 +700,7 @@ export const acceptRequest = async (req, res) => {
   }
 };
 
-// Reject request
+// ✅ Updated rejectRequest
 export const rejectRequest = async (req, res) => {
   try {
     const { requestId } = req.body;
@@ -707,14 +715,19 @@ export const rejectRequest = async (req, res) => {
       return res.status(404).json({ message: 'Request not found' });
     }
 
-    // Verify the request is for the current user
     if (request.recipient.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Not authorized to reject this request' });
     }
 
-    // Update request status
     request.status = 'rejected';
     await request.save();
+
+    // ✅ NEW: Emit socket event to remove from both users' notifications
+    const io = req.app.get('io');
+    if (io) {
+      io.to(req.user._id.toString()).emit('request_removed', { requestId: requestId.toString() });
+      io.to(request.sender.toString()).emit('request_removed', { requestId: requestId.toString() });
+    }
 
     res.status(200).json({ 
       success: true,
@@ -729,7 +742,7 @@ export const rejectRequest = async (req, res) => {
   }
 };
 
-// Cancel sent request
+// ✅ Updated cancelRequest
 export const cancelRequest = async (req, res) => {
   try {
     const { requestId } = req.body;
@@ -750,6 +763,13 @@ export const cancelRequest = async (req, res) => {
 
     await Request.findByIdAndDelete(requestId);
 
+    // ✅ NEW: Emit socket event to remove from both users' notifications
+    const io = req.app.get('io');
+    if (io) {
+      io.to(req.user._id.toString()).emit('request_removed', { requestId: requestId.toString() });
+      io.to(request.recipient.toString()).emit('request_removed', { requestId: requestId.toString() });
+    }
+
     res.status(200).json({ 
       success: true,
       message: 'Request cancelled successfully'
@@ -762,3 +782,153 @@ export const cancelRequest = async (req, res) => {
     });
   }
 };
+// export const acceptRequest = async (req, res) => {
+//   try {
+//     const { requestId, type } = req.body;
+
+//     if (!requestId || !type) {
+//       return res.status(400).json({ message: 'Request ID and type are required' });
+//     }
+
+//     const request = await Request.findById(requestId);
+
+//     if (!request) {
+//       return res.status(404).json({ message: 'Request not found' });
+//     }
+
+//     if (request.recipient.toString() !== req.user._id.toString()) {
+//       return res.status(403).json({ message: 'Not authorized to accept this request' });
+//     }
+
+//     if (request.status === 'accepted') {
+//       return res.status(400).json({ message: 'Request already accepted' });
+//     }
+
+//     request.status = 'accepted';
+//     await request.save();
+
+//     if (type === 'bond') {
+//       await User.findByIdAndUpdate(
+//         req.user._id,
+//         { $addToSet: { bonds: request.sender } }
+//       );
+//       await User.findByIdAndUpdate(
+//         request.sender,
+//         { $addToSet: { bonds: req.user._id } }
+//       );
+
+//       const io = req.app.get('io');
+//       if (io) {
+//         io.to(req.user._id.toString()).emit('bond_accepted', { userId: request.sender.toString() });
+//         io.to(request.sender.toString()).emit('bond_accepted', { userId: req.user._id.toString() });
+//       }
+//     } else if (type === 'special_friend') {
+//       await User.findByIdAndUpdate(
+//         req.user._id,
+//         { $addToSet: { chosen: request.sender } }
+//       );
+//       await User.findByIdAndUpdate(
+//         request.sender,
+//         { $addToSet: { chosen: req.user._id } }
+//       );
+
+//       const io = req.app.get('io');
+//       if (io) {
+//         io.to(req.user._id.toString()).emit('chosen_accepted', { userId: request.sender.toString() });
+//         io.to(request.sender.toString()).emit('chosen_accepted', { userId: req.user._id.toString() });
+//       }
+//     }
+
+//     const accepterUser = await User.findById(req.user._id).select('name username');
+
+//     await Notification.create({
+//       user: request.sender,
+//       type: `${type}_accepted`,
+//       message: `${accepterUser.name || accepterUser.username} accepted your ${type === 'bond' ? 'bond' : 'special friend'} request`,
+//       sender: req.user._id
+//     });
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Request accepted successfully',
+//       request
+//     });
+//   } catch (error) {
+//     console.error('❌ Accept request error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message || 'Failed to accept request'
+//     });
+//   }
+// };
+
+// // Reject request
+// export const rejectRequest = async (req, res) => {
+//   try {
+//     const { requestId } = req.body;
+
+//     if (!requestId) {
+//       return res.status(400).json({ message: 'Request ID is required' });
+//     }
+
+//     const request = await Request.findById(requestId);
+
+//     if (!request) {
+//       return res.status(404).json({ message: 'Request not found' });
+//     }
+
+//     // Verify the request is for the current user
+//     if (request.recipient.toString() !== req.user._id.toString()) {
+//       return res.status(403).json({ message: 'Not authorized to reject this request' });
+//     }
+
+//     // Update request status
+//     request.status = 'rejected';
+//     await request.save();
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Request rejected successfully'
+//     });
+//   } catch (error) {
+//     console.error('❌ Reject request error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message || 'Failed to reject request'
+//     });
+//   }
+// };
+
+// // Cancel sent request
+// export const cancelRequest = async (req, res) => {
+//   try {
+//     const { requestId } = req.body;
+
+//     if (!requestId) {
+//       return res.status(400).json({ message: 'Request ID is required' });
+//     }
+
+//     const request = await Request.findById(requestId);
+
+//     if (!request) {
+//       return res.status(404).json({ message: 'Request not found' });
+//     }
+
+//     if (request.sender.toString() !== req.user._id.toString()) {
+//       return res.status(403).json({ message: 'Not authorized to cancel this request' });
+//     }
+
+//     await Request.findByIdAndDelete(requestId);
+
+//     res.status(200).json({
+//       success: true,
+//       message: 'Request cancelled successfully'
+//     });
+//   } catch (error) {
+//     console.error('❌ Cancel request error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message || 'Failed to cancel request'
+//     });
+//   }
+// };
