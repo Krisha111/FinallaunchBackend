@@ -36,27 +36,87 @@ export const getNotifications = async (req, res) => {
   }
 };
 // ✅ Send like notification
-export const sendLikeNotification = async (req, res) => {
-  console.log('\n🔔 ========== SEND LIKE NOTIFICATION ==========');
-  console.log('📦 Request body:', req.body);
-  console.log('👤 Liker ID (from auth):', req.user?._id);
+// export const sendLikeNotification = async (req, res) => {
+//   console.log('\n🔔 ========== SEND LIKE NOTIFICATION ==========');
+//   console.log('📦 Request body:', req.body);
+//   console.log('👤 Liker ID (from auth):', req.user?._id);
 
+//   try {
+//     const { postId, postOwnerId } = req.body;
+//     const likerId = req.user._id;
+
+//     // Don't send notification if user likes their own post
+//     if (likerId.toString() === postOwnerId.toString()) {
+//       console.log('⚠️ Self-like detected, skipping notification');
+//       return res.status(200).json({ message: 'Self-like, no notification sent' });
+//     }
+
+//     console.log('📝 Fetching liker info...');
+//     const liker = await User.findById(likerId).select('name username');
+//     console.log('✅ Liker:', liker);
+
+//     // Create notification in database
+//     console.log('💾 Creating notification in database...');
+//     const notification = await Notification.create({
+//       user: postOwnerId,
+//       type: 'post_like',
+//       message: `${liker.name || liker.username} liked your post`,
+//       sender: likerId,
+//       postId: postId
+//     });
+//     console.log('✅ Notification created:', notification._id);
+
+//     // ✅ Get socket.io instance
+//     const io = req.app.get('io');
+//     if (!io) {
+//       console.error('❌ Socket.io instance not found on app!');
+//       return res.status(500).json({ message: 'Socket.io not configured' });
+//     }
+
+//     console.log('📡 Socket.io instance found');
+//     console.log('📤 Emitting to room:', postOwnerId.toString());
+
+//     // ✅ Emit socket event to post owner's room
+//     const socketData = {
+//       type: 'post_like',
+//       from: liker.name || liker.username,
+//       senderId: likerId.toString(),
+//       message: `${liker.name || liker.username} liked your post`,
+//       postId: postId,
+//       timestamp: Date.now()
+//     };
+
+//     console.log('📨 Socket data:', socketData);
+//     io.to(postOwnerId.toString()).emit('new_notification', socketData);
+//     console.log('✅ Socket event emitted successfully');
+
+//     console.log('========================================\n');
+//     res.status(200).json({
+//       success: true,
+//       message: 'Notification sent',
+//       notificationId: notification._id
+//     });
+//   } catch (error) {
+//     console.error('❌ Send like notification error:', error);
+//     console.error('❌ Error stack:', error.stack);
+//     console.log('========================================\n');
+//     res.status(500).json({
+//       success: false,
+//       message: error.message
+//     });
+//   }
+// };
+export const sendLikeNotification = async (req, res) => {
   try {
     const { postId, postOwnerId } = req.body;
     const likerId = req.user._id;
 
-    // Don't send notification if user likes their own post
     if (likerId.toString() === postOwnerId.toString()) {
-      console.log('⚠️ Self-like detected, skipping notification');
       return res.status(200).json({ message: 'Self-like, no notification sent' });
     }
 
-    console.log('📝 Fetching liker info...');
-    const liker = await User.findById(likerId).select('name username');
-    console.log('✅ Liker:', liker);
+    const liker = await User.findById(likerId).select('name username profileImage');
 
-    // Create notification in database
-    console.log('💾 Creating notification in database...');
     const notification = await Notification.create({
       user: postOwnerId,
       type: 'post_like',
@@ -64,33 +124,28 @@ export const sendLikeNotification = async (req, res) => {
       sender: likerId,
       postId: postId
     });
-    console.log('✅ Notification created:', notification._id);
 
-    // ✅ Get socket.io instance
     const io = req.app.get('io');
-    if (!io) {
-      console.error('❌ Socket.io instance not found on app!');
-      return res.status(500).json({ message: 'Socket.io not configured' });
+    if (io) {
+      const socketData = {
+        type: 'post_like',
+        from: liker.name || liker.username,
+        senderId: likerId.toString(),
+        message: `${liker.name || liker.username} liked your post`,
+        postId: postId,
+        timestamp: Date.now(),
+        // ✅ ADD sender data with profile image
+        sender: {
+          _id: likerId.toString(),
+          username: liker.username,
+          name: liker.name,
+          profileImage: liker.profileImage
+        }
+      };
+      
+      io.to(postOwnerId.toString()).emit('new_notification', socketData);
     }
 
-    console.log('📡 Socket.io instance found');
-    console.log('📤 Emitting to room:', postOwnerId.toString());
-
-    // ✅ Emit socket event to post owner's room
-    const socketData = {
-      type: 'post_like',
-      from: liker.name || liker.username,
-      senderId: likerId.toString(),
-      message: `${liker.name || liker.username} liked your post`,
-      postId: postId,
-      timestamp: Date.now()
-    };
-
-    console.log('📨 Socket data:', socketData);
-    io.to(postOwnerId.toString()).emit('new_notification', socketData);
-    console.log('✅ Socket event emitted successfully');
-
-    console.log('========================================\n');
     res.status(200).json({
       success: true,
       message: 'Notification sent',
@@ -98,37 +153,24 @@ export const sendLikeNotification = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Send like notification error:', error);
-    console.error('❌ Error stack:', error.stack);
-    console.log('========================================\n');
     res.status(500).json({
       success: false,
       message: error.message
     });
   }
 };
-
 // ✅ Send comment notification
 export const sendCommentNotification = async (req, res) => {
-  console.log('\n💬 ========== SEND COMMENT NOTIFICATION ==========');
-  console.log('📦 Request body:', req.body);
-  console.log('👤 Commenter ID (from auth):', req.user?._id);
-
   try {
     const { postId, postOwnerId, commentText } = req.body;
     const commenterId = req.user._id;
 
-    // Don't send notification if user comments on their own post
     if (commenterId.toString() === postOwnerId.toString()) {
-      console.log('⚠️ Self-comment detected, skipping notification');
       return res.status(200).json({ message: 'Self-comment, no notification sent' });
     }
 
-    console.log('📝 Fetching commenter info...');
-    const commenter = await User.findById(commenterId).select('name username');
-    console.log('✅ Commenter:', commenter);
+    const commenter = await User.findById(commenterId).select('name username profileImage');
 
-    // Create notification in database
-    console.log('💾 Creating notification in database...');
     const notification = await Notification.create({
       user: postOwnerId,
       type: 'post_comment',
@@ -136,37 +178,32 @@ export const sendCommentNotification = async (req, res) => {
       sender: commenterId,
       postId: postId
     });
-    console.log('✅ Notification created:', notification._id);
 
-    // ✅ Get socket.io instance
     const io = req.app.get('io');
-    if (!io) {
-      console.error('❌ Socket.io instance not found on app!');
-      return res.status(500).json({ message: 'Socket.io not configured' });
+    if (io) {
+      const preview = commentText.length > 50
+        ? `${commentText.substring(0, 50)}...`
+        : commentText;
+
+      const socketData = {
+        type: 'post_comment',
+        from: commenter.name || commenter.username,
+        senderId: commenterId.toString(),
+        message: `${commenter.name || commenter.username} commented: ${preview}`,
+        postId: postId,
+        timestamp: Date.now(),
+        // ✅ ADD sender data with profile image
+        sender: {
+          _id: commenterId.toString(),
+          username: commenter.username,
+          name: commenter.name,
+          profileImage: commenter.profileImage
+        }
+      };
+
+      io.to(postOwnerId.toString()).emit('new_notification', socketData);
     }
 
-    console.log('📡 Socket.io instance found');
-    console.log('📤 Emitting to room:', postOwnerId.toString());
-
-    // ✅ Emit socket event to post owner's room
-    const preview = commentText.length > 50
-      ? `${commentText.substring(0, 50)}...`
-      : commentText;
-
-    const socketData = {
-      type: 'post_comment',
-      from: commenter.name || commenter.username,
-      senderId: commenterId.toString(),
-      message: `${commenter.name || commenter.username} commented: ${preview}`,
-      postId: postId,
-      timestamp: Date.now()
-    };
-
-    console.log('📨 Socket data:', socketData);
-    io.to(postOwnerId.toString()).emit('new_notification', socketData);
-    console.log('✅ Socket event emitted successfully');
-
-    console.log('========================================\n');
     res.status(200).json({
       success: true,
       message: 'Notification sent',
@@ -174,14 +211,86 @@ export const sendCommentNotification = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Send comment notification error:', error);
-    console.error('❌ Error stack:', error.stack);
-    console.log('========================================\n');
     res.status(500).json({
       success: false,
       message: error.message
     });
   }
 };
+// export const sendCommentNotification = async (req, res) => {
+//   console.log('\n💬 ========== SEND COMMENT NOTIFICATION ==========');
+//   console.log('📦 Request body:', req.body);
+//   console.log('👤 Commenter ID (from auth):', req.user?._id);
+
+//   try {
+//     const { postId, postOwnerId, commentText } = req.body;
+//     const commenterId = req.user._id;
+
+//     // Don't send notification if user comments on their own post
+//     if (commenterId.toString() === postOwnerId.toString()) {
+//       console.log('⚠️ Self-comment detected, skipping notification');
+//       return res.status(200).json({ message: 'Self-comment, no notification sent' });
+//     }
+
+//     console.log('📝 Fetching commenter info...');
+//     const commenter = await User.findById(commenterId).select('name username');
+//     console.log('✅ Commenter:', commenter);
+
+//     // Create notification in database
+//     console.log('💾 Creating notification in database...');
+//     const notification = await Notification.create({
+//       user: postOwnerId,
+//       type: 'post_comment',
+//       message: `${commenter.name || commenter.username} commented on your post`,
+//       sender: commenterId,
+//       postId: postId
+//     });
+//     console.log('✅ Notification created:', notification._id);
+
+//     // ✅ Get socket.io instance
+//     const io = req.app.get('io');
+//     if (!io) {
+//       console.error('❌ Socket.io instance not found on app!');
+//       return res.status(500).json({ message: 'Socket.io not configured' });
+//     }
+
+//     console.log('📡 Socket.io instance found');
+//     console.log('📤 Emitting to room:', postOwnerId.toString());
+
+//     // ✅ Emit socket event to post owner's room
+//     const preview = commentText.length > 50
+//       ? `${commentText.substring(0, 50)}...`
+//       : commentText;
+
+//     const socketData = {
+//       type: 'post_comment',
+//       from: commenter.name || commenter.username,
+//       senderId: commenterId.toString(),
+//       message: `${commenter.name || commenter.username} commented: ${preview}`,
+//       postId: postId,
+//       timestamp: Date.now()
+//     };
+
+//     console.log('📨 Socket data:', socketData);
+//     io.to(postOwnerId.toString()).emit('new_notification', socketData);
+//     console.log('✅ Socket event emitted successfully');
+
+//     console.log('========================================\n');
+//     res.status(200).json({
+//       success: true,
+//       message: 'Notification sent',
+//       notificationId: notification._id
+//     });
+//   } catch (error) {
+//     console.error('❌ Send comment notification error:', error);
+//     console.error('❌ Error stack:', error.stack);
+//     console.log('========================================\n');
+//     res.status(500).json({
+//       success: false,
+//       message: error.message
+//     });
+//   }
+// };
 // Add this to your backend/controller/requestController.js
 
 export const getReceivedAcceptedRequests = async (req, res) => {
@@ -368,7 +477,9 @@ export const sendBondRequest = async (req, res) => {
           from: senderUser.name || senderUser.username,
           senderId: senderId.toString(),
           message: `${senderUser.name || senderUser.username} sent you a bond request`,
-          requestId: newRequest._id.toString() // ✅ ADD unique ID
+          requestId: newRequest._id.toString(),
+           // ✅ ADD sender profile image
+    senderProfileImage: senderUser.profileImage || null // ✅ ADD unique ID
         };
 
         console.log("📤 Emitting new_request to:", recipientId.toString());
@@ -496,7 +607,9 @@ export const sendSpecialFriendRequest = async (req, res) => {
         from: senderUser.name || senderUser.username,
         senderId: senderId.toString(),
         message: `${senderUser.name || senderUser.username} sent you a special friend request`,
-        requestId: newRequest._id.toString()
+        requestId: newRequest._id.toString(),
+           // ✅ ADD sender profile image
+    senderProfileImage: senderUser.profileImage || null
       };
 
       io.to(recipientId.toString()).emit('new_request', socketData);
