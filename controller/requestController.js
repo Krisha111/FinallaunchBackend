@@ -519,23 +519,54 @@ export const sendSpecialFriendRequest = async (req, res) => {
 
 // ✅ NEW: Get full request details (for viewing image and caption)
 export const getRequestDetails = async (req, res) => {
+  console.log('\n🔍 ========== GET REQUEST DETAILS ==========');
+  console.log('📦 Request params:', req.params);
+  console.log('🆔 Request ID:', req.params.requestId);
+  console.log('👤 User ID:', req.user?._id);
+  
   try {
     const { requestId } = req.params;
 
+    if (!requestId) {
+      console.log('❌ No requestId provided');
+      return res.status(400).json({ message: 'Request ID is required' });
+    }
+
+    console.log('🔍 Searching for request:', requestId);
+    
     const request = await Request.findById(requestId)
       .populate('sender', 'name username profileImage')
       .populate('recipient', 'name username profileImage');
 
     if (!request) {
+      console.log('❌ Request not found in database');
       return res.status(404).json({ message: 'Request not found' });
     }
 
+    console.log('✅ Request found:', {
+      id: request._id,
+      type: request.type,
+      status: request.status,
+      sender: request.sender?._id,
+      recipient: request.recipient?._id
+    });
+
     // Verify user is either sender or recipient
     const userId = req.user._id.toString();
+    console.log('🔐 Checking authorization...');
+    console.log('   User ID:', userId);
+    console.log('   Sender ID:', request.sender._id.toString());
+    console.log('   Recipient ID:', request.recipient._id.toString());
+    
     if (request.sender._id.toString() !== userId && 
         request.recipient._id.toString() !== userId) {
+      console.log('❌ User not authorized');
       return res.status(403).json({ message: 'Not authorized to view this request' });
     }
+
+    console.log('✅ Authorization successful');
+    console.log('📤 Sending request details');
+    console.log('========================================\n');
 
     res.status(200).json({
       success: true,
@@ -543,14 +574,16 @@ export const getRequestDetails = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Get request details error:', error);
+    console.error('❌ Error name:', error.name);
+    console.error('❌ Error message:', error.message);
+    console.log('========================================\n');
+    
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to fetch request details'
     });
   }
 };
-
-
 
 export const getPendingRequests = async (req, res) => {
   try {
