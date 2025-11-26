@@ -361,9 +361,13 @@ io.on('connection', (socket) => {
   // ================================
   socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
     console.log(`✅ ${to} accepting invite from ${from} via notification`);
-     // ✅ NEW: Emit to both users to remove the invite
-  io.to(data.from).emit('invite_removed', { inviteId: data.inviteId });
-  io.to(data.to).emit('invite_removed', { inviteId: data.inviteId });
+    
+      // ✅ Use the destructured parameters
+  io.to(from).emit('invite_removed', { inviteId });
+  io.to(to).emit('invite_removed', { inviteId });
+    // ✅ NEW: Emit to both users to remove the invite
+  // io.to(data.from).emit('invite_removed', { inviteId: data.inviteId });
+  // io.to(data.to).emit('invite_removed', { inviteId: data.inviteId });
     if (inviteTimers.has(inviteId)) {
       clearTimeout(inviteTimers.get(inviteId));
       inviteTimers.delete(inviteId);
@@ -534,9 +538,9 @@ io.on('connection', (socket) => {
   socket.on('reject_invite', ({ inviteId, username }) => {
     const userInvites = pendingInvites.get(username) || [];
     const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
-   
+   io.to(username).emit('invite_removed', { inviteId });
     // ✅ NEW: Emit to both users to remove the invite
-  io.to(data.username).emit('invite_removed', { inviteId: data.inviteId });
+  // io.to(data.username).emit('invite_removed', { inviteId: data.inviteId });
     if (inviteTimers.has(inviteId)) {
       clearTimeout(inviteTimers.get(inviteId));
       inviteTimers.delete(inviteId);
