@@ -485,12 +485,12 @@ export const sendBondRequest = async (req, res) => {
         console.log("📤 Emitting new_request to:", recipientId.toString());
         io.to(recipientId.toString()).emit('new_request', socketData);
       }
-      io.to(recipientId.toString()).emit('new_request', {
-        type: 'bond_request',
-        from: senderUser.name || senderUser.username,
-        senderId: senderId.toString(),
-        message: `${senderUser.name || senderUser.username} sent you a bond request`
-      });
+      // io.to(recipientId.toString()).emit('new_request', {
+      //   type: 'bond_request',
+      //   from: senderUser.name || senderUser.username,
+      //   senderId: senderId.toString(),
+      //   message: `${senderUser.name || senderUser.username} sent you a bond request`
+      // });
     }
     console.log('✅ Notification created');
 
