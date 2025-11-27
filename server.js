@@ -432,15 +432,28 @@ io.on('connection', (socket) => {
   // ================================
   // ✅ SEND NOTIFICATION
   // ================================
-  socket.on('send-notification', (data) => {
-    const { receiverId } = data;
-    const receiverSocket = onlineUsers[receiverId];
-    if (receiverSocket) {
-      io.to(receiverSocket).emit('new_notification', data);
-      console.log(`🔔 Notification sent to ${receiverId}`);
-    }
-  });
-
+  // socket.on('send-notification', (data) => {
+  //   const { receiverId } = data;
+  //   const receiverSocket = onlineUsers[receiverId];
+  //   if (receiverSocket) {
+  //     io.to(receiverSocket).emit('new_notification', data);
+  //     console.log(`🔔 Notification sent to ${receiverId}`);
+  //   }
+  // });
+socket.on('send-notification', (data) => {
+  const { receiverId } = data;
+  
+  // Use userSockets instead of onlineUsers
+  const receiverSocket = userSockets.get(receiverId?.toString());
+  
+  if (receiverSocket) {
+    // Emit to specific socket only ONCE
+    io.to(receiverSocket).emit('new_notification', data);
+    console.log(`🔔 Notification sent to ${receiverId}`);
+  } else {
+    console.log(`⚠️ Receiver ${receiverId} not connected`);
+  }
+});
   socket.on('change_reel', ({ room, reelUrl }) => {
     io.to(room).emit('reel_updated', { reelUrl });
     console.log(`🎬 Reel changed in room ${room}`);
@@ -532,6 +545,7 @@ io.on('connection', (socket) => {
     console.log(`📬 Sent ${pendingOnly.length} pending invites to ${username}`);
   });
 
+  
   // ================================
   // ✅ REJECT INVITE
   // ================================
