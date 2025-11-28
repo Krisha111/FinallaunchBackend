@@ -49,13 +49,13 @@ const storage = new CloudinaryStorage({
   },
 });
 
-// ✅ Storage for audio comments
+// ✅ Storage for audio comments - FIXED VERSION
 const audioStorage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder: 'comment_audio',
-    resource_type: 'auto',
-    allowed_formats: ['mp3', 'm4a', 'wav', 'ogg'],
+    resource_type: 'video', // ✅ Changed from 'auto' to 'video' (handles audio)
+    allowed_formats: ['mp3', 'm4a', 'wav', 'ogg', 'mp4', 'aac'], // ✅ Added mp4 and aac
   },
 });
 

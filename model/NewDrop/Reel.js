@@ -38,15 +38,16 @@ const reelSchema = new mongoose.Schema(
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
 
     commentCount: { type: Number, default: 0 },
-
-    // ✅ Comments array
-    comments: [
-      {
-      user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-        text: { type: String, required: true, trim: true },
-        createdAt: { type: Date, default: Date.now },
-      },
-    ],
+// models/Reel.js - Replace comments schema
+comments: [
+  {
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    text: { type: String, required: true, trim: true },
+    createdAt: { type: Date, default: Date.now },
+    parentCommentId: { type: mongoose.Schema.Types.ObjectId, default: null }, // ✅ NEW
+    replies: [{ type: mongoose.Schema.Types.ObjectId }] // ✅ NEW - stores reply IDs
+  },
+],
 
     savedReels: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Reel' }],
   },
