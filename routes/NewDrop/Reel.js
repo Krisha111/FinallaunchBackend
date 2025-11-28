@@ -31,7 +31,18 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+// ✅ ADD IMAGE UPLOAD ROUTE
+const imageStorage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'comment_images',
+    resource_type: 'image',
+    allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+    transformation: [{ width: 800, height: 600, crop: 'limit' }]
+  },
+});
 
+const imageUpload = multer({ storage: imageStorage });
 // ✅ Storage for reels (videos/images)
 const storage = new CloudinaryStorage({
   cloudinary,
@@ -88,10 +99,10 @@ router.post('/:reelId/like', protect, likeReel);
 router.post('/comments/:reelId', protect, addCommentToReel);
 router.delete('/comments/:reelId/:commentId', protect, deleteReelComment);
 
-// ✅ ADD THIS AUDIO UPLOAD ROUTE
-router.post('/upload/audio', protect, audioUpload.single('audio'), (req, res) => {
+
+router.post('/upload/image', protect, imageUpload.single('image'), (req, res) => {
   if (!req.file) {
-    return res.status(400).json({ error: 'No audio file uploaded' });
+    return res.status(400).json({ error: 'No image file uploaded' });
   }
   res.json({ url: req.file.path });
 });
