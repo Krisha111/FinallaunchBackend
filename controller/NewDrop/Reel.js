@@ -603,3 +603,32 @@ export const likeReel = async (req, res) => {
     res.status(500).json({ message: "Server error", error: error.message });
   }
 };
+export const deleteReelComment = async (req, res) => {
+  try {
+    const { reelId, commentId } = req.params;
+    const userId = req.user._id;
+
+    const reel = await Reel.findById(reelId);
+    if (!reel) return res.status(404).json({ message: 'Reel not found' });
+
+    const comment = reel.comments.id(commentId);
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
+
+    // Check if user owns this comment
+    if (comment.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    reel.comments.pull(commentId);
+    reel.commentCount = reel.comments.length;
+    await reel.save();
+
+    await reel.populate('comments.user', 'username profileImage');
+    await reel.populate('user', 'username profileImage');
+
+    res.status(200).json({ reel });
+  } catch (error) {
+    console.error('Delete comment error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};

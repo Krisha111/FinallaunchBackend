@@ -15,7 +15,8 @@ import {
   getAllReels,
   commentOnReel,
   getReelsByUserId,
-  deleteReel
+  deleteReel,
+  deleteReelComment  
 } from '../../controller/NewDrop/Reel.js';
 import { protect } from '../../MiddleWare/authMiddleware.js';
 
@@ -131,4 +132,10 @@ router.post('/:reelId/like', protect, likeReel);
  */
 router.post('/comments/:reelId', protect, addCommentToReel);
 
+/**
+ * @route   DELETE /api/reels/comments/:reelId/:commentId
+ * @desc    Delete a comment from a reel
+ * @access  Private
+ */
+router.delete('/comments/:reelId/:commentId', protect, deleteReelComment);
 export default router;
