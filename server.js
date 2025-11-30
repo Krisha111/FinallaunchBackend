@@ -661,6 +661,14 @@ socket.on('sync_reel_index', ({ room, index }) => {
   io.to(room).emit('sync_reel_index', { index });
 });
 
+// ================================
+// ✅ SEND ACTIVITY
+// ================================
+socket.on('send_activity', ({ room, activity, username }) => {
+  console.log(`📊 Activity in ${room}: ${username} - ${activity}`);
+  socket.to(room).emit('user_activity', { activity, username });
+});
+
   // ================================
   // ✅ REEL PLAY STATE
   // ================================
