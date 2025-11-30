@@ -647,39 +647,37 @@ socket.on('send-notification', (data) => {
   // ================================
   // ✅ SYNC REEL INDEX
   // ================================
-  socket.on('sync_reel_index', ({ room, index }) => {
-    const admin = admins[room];
-    if (socket.username === admin) {
-      if (roomStates[room]) {
-        roomStates[room].currentIndex = index;
-      } else {
-        roomStates[room] = { currentIndex: index, isPlaying: true };
-      }
-      console.log(
-        `🔄 Admin ${socket.username} synced reel index to ${index} in room ${room}`
-      );
-      socket.to(room).emit('sync_reel_index', { index });
-    }
-  });
+socket.on('sync_reel_index', ({ room, index }) => {
+  // ✅ Allow anyone to sync, not just admin
+  if (roomStates[room]) {
+    roomStates[room].currentIndex = index;
+  } else {
+    roomStates[room] = { currentIndex: index, isPlaying: true };
+  }
+  console.log(
+    `🔄 ${socket.username} synced reel index to ${index} in room ${room}`
+  );
+  // ✅ Broadcast to everyone in room including sender
+  io.to(room).emit('sync_reel_index', { index });
+});
 
   // ================================
   // ✅ REEL PLAY STATE
   // ================================
-  socket.on('reel_play', ({ room, index, isPlaying }) => {
-    const admin = admins[room];
-    if (socket.username === admin) {
-      if (roomStates[room]) {
-        roomStates[room].currentIndex = index;
-        roomStates[room].isPlaying = isPlaying;
-      } else {
-        roomStates[room] = { currentIndex: index, isPlaying };
-      }
-      console.log(
-        `▶️ Admin ${socket.username} set play state: index=${index}, isPlaying=${isPlaying} in room ${room}`
-      );
-      socket.to(room).emit('reel_play_state', { index, isPlaying });
-    }
-  });
+ socket.on('reel_play', ({ room, index, isPlaying }) => {
+  // ✅ Allow anyone to control play state, not just admin
+  if (roomStates[room]) {
+    roomStates[room].currentIndex = index;
+    roomStates[room].isPlaying = isPlaying;
+  } else {
+    roomStates[room] = { currentIndex: index, isPlaying };
+  }
+  console.log(
+    `▶️ ${socket.username} set play state: index=${index}, isPlaying=${isPlaying} in room ${room}`
+  );
+  // ✅ Broadcast to everyone in room including sender
+  io.to(room).emit('reel_play_state', { index, isPlaying });
+});
 // Add this new event handler in your socket configuration
 socket.on('request_room_reel_order', ({ room }, callback) => {
   console.log(`📋 Room ${room} requesting reel order`);
