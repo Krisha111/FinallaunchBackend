@@ -301,7 +301,47 @@ export const getSavedReels = async (req, res) => {
   }
 };
 
+export const addCommentToReel = async (req, res) => {
+  try {
+    const { reelId } = req.params;
+    const { text, parentCommentId } = req.body;
+    const commenterId = req.user._id;
 
+    const reel = await Reel.findById(reelId);
+    if (!reel) return res.status(404).json({ message: 'Reel not found' });
+
+    const newComment = {
+      user: commenterId,
+      text: text,
+      createdAt: new Date(),
+      parentCommentId: parentCommentId || null,
+      replies: []
+    };
+
+    reel.comments.push(newComment);
+    const addedComment = reel.comments[reel.comments.length - 1];
+
+    // ✅ If reply, add to parent's replies array
+    if (parentCommentId) {
+      const parentComment = reel.comments.id(parentCommentId);
+      if (parentComment) {
+        parentComment.replies.push(addedComment._id);
+      }
+    }
+
+    reel.commentCount = reel.comments.length;
+    await reel.save();
+
+    // ✅ Populate everything including nested replies
+    await reel.populate('comments.user', 'username profileImage');
+    await reel.populate('user', 'username profileImage');
+
+    res.json({ success: true, reel: reel });
+  } catch (error) {
+    console.error('❌ Comment error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 // export const addCommentToReel = async (req, res) => {
 //   try {
 //     const { reelId } = req.params;
