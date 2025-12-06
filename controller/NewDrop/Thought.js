@@ -1,0 +1,436 @@
+// controllers/thoughtController.js
+// ✅ Removed frontend import (caused localhost issue)
+import Thought from '../../model/NewDrop/Thought.js';
+import User from '../../model/User.js';
+import dotenv from 'dotenv';
+dotenv.config();
+import mongoose from 'mongoose';
+import Notification from '../../model/Notification.js';
+
+// Use environment variable if provided (recommended for production), otherwise fall back to localhost for dev
+const BASE_URL = process.env.BASE_URL || "https://finallaunchbackend.onrender.com";
+
+/**
+ * @desc   Get thoughts by user ID
+ * @route  GET /api/thoughts/user/:userId
+ * @access Public
+ */
+export const getThoughtsByUserId = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // 🔒 Validate userId before querying
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ error: "Invalid user ID" });
+    }
+
+    // ✅ Fetch thoughts for this user
+    const thoughts = await Thought.find({ user: userId })
+      .populate("user", "username profileImage bio")
+      .populate('comments.user', 'username profileImage') // populate only needed fields
+      .sort({ createdAt: -1 });
+
+    if (!thoughts || thoughts.length === 0) {
+      return res.status(404).json({ message: "No thoughts found for this user" });
+    }
+
+    res.json(thoughts);
+  } catch (err) {
+    console.error("❌ Error fetching thoughts by user ID:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+export const deleteThought = async (req, res) => {
+  try {
+    const { thoughtId } = req.params;
+    const userId = req.user._id;
+
+    const thought = await Thought.findById(thoughtId);
+    
+    if (!thought) {
+      return res.status(404).json({ message: "Thought not found" });
+    }
+
+    // Check if user owns this thought
+    if (thought.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: "Not authorized to delete this thought" });
+    }
+
+    await Thought.findByIdAndDelete(thoughtId);
+
+    res.status(200).json({ message: "Thought deleted successfully" });
+  } catch (error) {
+    console.error("❌ Delete error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const commentOnThought = async (req, res) => {
+  try {
+    const { text } = req.body;
+    const { thoughtId } = req.params;
+
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authorized" });
+    }
+
+    const thought = await Thought.findById(thoughtId);
+    if (!thought) return res.status(404).json({ message: "Thought not found" });
+
+    const newComment = {
+      user: req.user._id,
+      text,
+      createdAt: new Date(),
+    };
+
+    thought.comments.push(newComment);
+    
+    // ✅ UPDATE COMMENT COUNT
+    thought.commentCount = thought.comments.length;
+    
+    await thought.save();
+
+    // populate user info before sending to frontend
+    await thought.populate("comments.user", "username profileImage");
+    await thought.populate("user", "username profileImage");
+
+    res.json(thought);
+  } catch (error) {
+    console.error("Error adding comment:", error);
+    res.status(500).json({ message: "Server error while adding comment" });
+  }
+};
+
+// ✅ Get all thoughts (from all users)
+export const getAllThoughts = async (req, res) => {
+  try {
+    const thoughts = await Thought.find({})
+      .populate("user", "username profileImage") // include user info
+      .populate("comments.user", "username profileImage")
+      .sort({ createdAt: -1 }); // latest first
+
+    res.status(200).json(thoughts);
+  } catch (error) {
+    console.error("❌ Error fetching all thoughts:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const createThoughtPost = async (req, res) => {
+  const { thoughtText, thoughtLocation } = req.body;
+  const thoughtFile = req.files?.thoughtFiles ? req.files.thoughtFiles[0] : null;
+  const posterFile = req.files?.poster ? req.files.poster[0] : null;
+
+  if (!thoughtFile || !posterFile) {
+    return res.status(400).json({ message: "Missing image or poster file" });
+  }
+
+  try {
+    const {
+      thoughtText,
+      thoughtLocation,
+      thoughtCommenting,
+      thoughtLikeCountVisible,
+      thoughtShareCountVisible,
+      thoughtPinned,
+      type,
+    } = req.body;
+
+    // ✅ Access uploaded files safely
+    const posterFile = req.files?.poster ? req.files.poster[0] : null;
+    const thoughtFiles = req.files?.thoughtFiles || [];
+
+    // ✅ Expecting poster and multiple thought files
+    const posterImage = posterFile?.path || "";
+    const photoThoughtImages = thoughtFiles.map(file => file.path); // ✅ Cloudinary URL
+
+    // Build array and log each uploaded file (fix: logging inside loop)
+    if (thoughtFiles.length) {
+      console.log("💭 ====== Uploaded Thought Files ======");
+      thoughtFiles.forEach((file, index) => {
+        const fileUrl = `${BASE_URL}/uploads/${file.filename}`;
+        console.log(`🖼️ Image ${index + 1} URL: ${fileUrl}`);
+        photoThoughtImages.push(fileUrl);
+      });
+      console.log("=====================================");
+    } else {
+      console.log("⚠️ No thought files uploaded.");
+    }
+
+    if (posterFile) {
+      console.log(`🖼️ Poster Image URL: ${BASE_URL}/uploads/${posterFile.filename}`);
+    }
+
+    // Log body & file info (for debugging)
+    console.log("🧾 req.body:", req.body);
+    console.log("📂 req.files:", req.files);
+
+    const newThought = new Thought({
+      user: req.user._id,
+      thoughtText,
+      thoughtLocation,
+      thoughtCommenting: thoughtCommenting ?? true,
+      thoughtLikeCountVisible: thoughtLikeCountVisible ?? true,
+      thoughtShareCountVisible: thoughtShareCountVisible ?? true,
+      thoughtPinned: thoughtPinned ?? false,
+      posterImage, // ✅ save poster
+      photoThoughtImages,
+      type: type || "regular",
+    });
+
+    await newThought.save();
+
+    const populatedThought = await Thought.findById(newThought._id).populate(
+      "user",
+      "username profileImage email"
+    );
+
+    console.log("✅ Thought successfully created for user:", req.user?._id);
+    console.log("✅ Thought DB ID:", newThought._id);
+    console.log("✅ Image URLs saved:", photoThoughtImages);
+    console.log("✅ Poster URL saved:", posterImage);
+
+    res.status(201).json({
+      message: "Thought created successfully",
+      thought: populatedThought,
+    });
+  } catch (err) {
+    console.error("❌ Error creating thought:", err);
+    res.status(500).json({
+      message: "Error creating thought",
+      error: err.toString(),
+    });
+  }
+};
+
+/**
+ * @desc   Get all thoughts (optionally filter by type)
+ * @route  GET /api/thoughts
+ * @access Public (or protected depending on middleware)
+ */
+export const getAllThoughtPosts = async (req, res) => {
+  try {
+    const userId = req.user?._id; // only works if route is protected
+    const thoughts = await Thought.find({ user: userId })
+      .populate('user', 'username profileImage email')
+      .populate("comments.user", "username profileImage")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(thoughts);
+  } catch (err) {
+    console.error('❌ Error fetching thoughts:', err);
+    res.status(500).json({ message: 'Error fetching thoughts', error: err.message });
+  }
+};
+
+/**
+ * @desc   Get thoughts created by authenticated user
+ * @route  GET /api/thoughts/mine
+ * @access Private
+ */
+export const getMyThoughtPosts = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { type } = req.query;
+
+    const filter = { user: userId };
+    if (type) filter.type = type;
+
+    const thoughts = await Thought.find(filter)
+      .populate("user", "username profileImage email")
+      .populate("comments.user", "username profileImage")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(thoughts);
+  } catch (error) {
+    console.error('❌ Error fetching user thoughts:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+/**
+ * @desc   Save a thought to user's saved list
+ * @route  POST /api/thoughts/save/:thoughtId
+ * @access Private
+ */
+export const saveThought = async (req, res) => {
+  try {
+    const { thoughtId } = req.params;
+    const userId = req.user._id;
+
+    const user = await User.findById(userId).populate('savedThoughts');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (!user.savedThoughts.includes(thoughtId)) {
+      user.savedThoughts.push(thoughtId);
+      await user.save();
+    }
+
+    res.status(200).json({ message: 'Thought saved successfully!' });
+  } catch (error) {
+    console.error('❌ Error saving thought:', error);
+    res.status(500).json({ message: 'Error saving thought', error: error.message });
+  }
+};
+
+/**
+ * @desc   Get all saved thoughts for a user
+ * @route  GET /api/thoughts/saved
+ * @access Private
+ */
+export const getSavedThoughts = async (req, res) => {
+  try {
+    const { type } = req.query;
+
+    const user = await User.findById(req.user._id).populate('savedThoughts');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    let savedThoughts = user.savedThoughts;
+    if (type) savedThoughts = savedThoughts.filter((thought) => thought.type === type);
+
+    res.status(200).json(savedThoughts);
+  } catch (error) {
+    console.error('❌ Error fetching saved thoughts:', error);
+    res.status(500).json({ message: 'Error fetching saved thoughts', error: error.message });
+  }
+};
+
+export const addCommentToThought = async (req, res) => {
+  try {
+    const { thoughtId } = req.params;
+    const { text, parentCommentId } = req.body; // ✅ Accept parentCommentId
+    const commenterId = req.user._id;
+
+    const thought = await Thought.findById(thoughtId);
+    if (!thought) return res.status(404).json({ message: 'Thought not found' });
+
+    const newComment = {
+      user: commenterId,
+      text: text,
+      createdAt: new Date(),
+      parentCommentId: parentCommentId || null, // ✅ NEW
+      replies: []
+    };
+
+    thought.comments.push(newComment);
+    const addedComment = thought.comments[thought.comments.length - 1];
+
+    // ✅ If it's a reply, add to parent's replies array
+    if (parentCommentId) {
+      const parentComment = thought.comments.id(parentCommentId);
+      if (parentComment) {
+        parentComment.replies.push(addedComment._id);
+      }
+    }
+
+    thought.commentCount = thought.comments.length;
+    await thought.save();
+
+    await thought.populate('comments.user', 'username profileImage');
+    await thought.populate('user', 'username profileImage');
+
+    res.json({ success: true, thought: thought });
+  } catch (error) {
+    console.error('❌ Comment error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const likeThought = async (req, res) => {
+  try {
+    const { thoughtId } = req.params;
+    const userId = req.user?._id;
+
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const thought = await Thought.findById(thoughtId).populate('user', 'username profileImage');
+    if (!thought) return res.status(404).json({ message: "Thought not found" });
+
+    const alreadyLiked = thought.likes.some((id) => id.equals(userId));
+    
+    if (alreadyLiked) {
+      thought.likes.pull(userId);
+    } else {
+      thought.likes.push(userId);
+      
+      if (thought.user._id.toString() !== userId.toString()) {
+        try {
+          const liker = await User.findById(userId).select('name username profileImage'); // ✅ Added profileImage
+          
+          await Notification.create({
+            user: thought.user._id,
+            type: 'post_like',
+            message: `${liker.name || liker.username} liked your thought`,
+            sender: userId,
+            postId: thoughtId
+          });
+
+          const io = req.app.get('io');
+          if (io) {
+            const socketData = {
+              type: 'post_like',
+              from: liker.name || liker.username,
+              senderId: userId.toString(),
+              message: `${liker.name || liker.username} liked your thought`,
+              postId: thoughtId,
+              timestamp: Date.now(),
+              sender: {  // ✅ Include full sender object
+                _id: userId.toString(),
+                username: liker.username,
+                name: liker.name,
+                profileImage: liker.profileImage
+              }
+            };
+            
+            console.log('📤 Emitting like notification');
+            io.to(thought.user._id.toString()).emit('new_notification', socketData);
+          }
+        } catch (notifError) {
+          console.error('⚠️ Failed to send like notification:', notifError);
+        }
+      }
+    }
+
+    await thought.save();
+
+    const updatedThought = await Thought.findById(thoughtId)
+      .populate("user", "username profileImage email")
+      .populate("comments.user", "username profileImage");
+
+    res.status(200).json(updatedThought);
+  } catch (error) {
+    console.error("❌ Like error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+export const deleteThoughtComment = async (req, res) => {
+  try {
+    const { thoughtId, commentId } = req.params;
+    const userId = req.user._id;
+
+    const thought = await Thought.findById(thoughtId);
+    if (!thought) return res.status(404).json({ message: 'Thought not found' });
+
+    const comment = thought.comments.id(commentId);
+    if (!comment) return res.status(404).json({ message: 'Comment not found' });
+
+    // Check if user owns this comment
+    if (comment.user.toString() !== userId.toString()) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    thought.comments.pull(commentId);
+    thought.commentCount = thought.comments.length;
+    await thought.save();
+
+    await thought.populate('comments.user', 'username profileImage');
+    await thought.populate('user', 'username profileImage');
+
+    res.status(200).json({ thought });
+  } catch (error) {
+    console.error('Delete comment error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};

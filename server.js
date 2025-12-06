@@ -91,6 +91,8 @@ const allowedOrigins = [
 // ✅ Temporary in-memory store for invites
 const invites = [];
 
+const activeCallRooms = new Map(); // Track active calls
+
 app.use(
   cors({
     origin: function (origin, callback) {
@@ -737,10 +739,61 @@ socket.on('set_room_reel_order', ({ room, reelOrder }) => {
     console.log(`👋 Admin ${adminName} left room ${room}`);
   });
 
+  socket.on('initiate_call', ({ room, callType, from, to }) => {
+  console.log(`📞 ${from} initiating ${callType} call to ${to}`);
+  
+  const recipientUser = userssample[to];
+  if (recipientUser?.socketId) {
+    io.to(recipientUser.socketId).emit('incoming_call', {
+      room,
+      callType,
+      from,
+      callId: `call_${Date.now()}`
+    });
+  }
+});
+
+socket.on('accept_call', ({ room, callId, from, to }) => {
+  console.log(`✅ ${to} accepted call from ${from}`);
+  
+  activeCallRooms.set(room, { callId, participants: [from, to] });
+  
+  const fromUser = userssample[from];
+  if (fromUser?.socketId) {
+    io.to(fromUser.socketId).emit('call_accepted', { room, callId });
+  }
+  
+  io.to(socket.id).emit('call_accepted', { room, callId });
+});
+
+socket.on('reject_call', ({ callId, from, to }) => {
+  console.log(`❌ ${to} rejected call from ${from}`);
+  
+  const fromUser = userssample[from];
+  if (fromUser?.socketId) {
+    io.to(fromUser.socketId).emit('call_rejected', { callId });
+  }
+});
+
+socket.on('end_call', ({ room }) => {
+  console.log(`📴 Call ended in room ${room}`);
+  
+  activeCallRooms.delete(room);
+  io.to(room).emit('call_ended', { room });
+});
+
   // ================================
   // ✅ DISCONNECT HANDLER
   // ================================
   socket.on('disconnect', () => {
+    // Inside socket.on('disconnect', ...) - add this near the end:
+activeCallRooms.forEach((callData, callRoom) => {
+  if (callData.participants.includes(socket.username)) {
+    activeCallRooms.delete(callRoom);
+    io.to(callRoom).emit('call_ended', { room: callRoom });
+  }
+});
+
     // Remove user from socket map
     for (const [userId, socketId] of userSockets.entries()) {
       if (socketId === socket.id) {
