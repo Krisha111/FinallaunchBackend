@@ -50,38 +50,29 @@ export const authenticate = async (req, res, next) => {
 // ===========================
 export const getProfileStats = async (req, res) => {
   try {
-    console.log("📥 Incoming params:", req.params);
-    // console.log("📥 Authenticated user:", req.user?._id);
-
-    // ✅ Accept :id from route params OR fallback to authenticated user
-    const targetUserId = req.params?.id 
-    
-
-    console.log("🎯 Target userId:", targetUserId);
+    const targetUserId = req.params?.id;
 
     if (!targetUserId) {
-      console.log("❌ No userId provided.");
       return res.status(400).json({ error: "User ID is required" });
     }
 
-    // ✅ Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(String(targetUserId))) {
-      console.log("❌ Invalid userId format:", targetUserId);
       return res.status(400).json({ error: "Invalid user ID format" });
     }
 
-    console.log("📊 Fetching stats for userId:", targetUserId);
-
-    // ✅ Count reels for that user
-    const regularReelCount = await Reel.countDocuments({
-      user: targetUserId,
-      type: "regular",
-    });
-
-    console.log(`✅ regularReelCount for ${targetUserId}:`, regularReelCount);
+    // Count all content types
+    const [regularReelCount, postCount, momentCount, thoughtCount] = await Promise.all([
+      Reel.countDocuments({ user: targetUserId, type: "regular" }),
+      Post.countDocuments({ user: targetUserId, type: "regular" }),
+      Moment.countDocuments({ user: targetUserId, type: "regular" }),
+      Thought.countDocuments({ user: targetUserId, type: "regular" })
+    ]);
 
     return res.status(200).json({
       regularReelCount,
+      postCount,
+      momentCount,
+      thoughtCount,
       userId: targetUserId,
     });
   } catch (error) {
