@@ -53,7 +53,7 @@ export const authenticate = async (req, res, next) => {
 // ===========================
 export const getProfileStats = async (req, res) => {
   try {
-    const targetUserId = req.params?.id;
+    const targetUserId = req.params?.userId;
 
     if (!targetUserId) {
       return res.status(400).json({ error: "User ID is required" });
@@ -64,7 +64,8 @@ export const getProfileStats = async (req, res) => {
     }
 
     // Count all content types
-    const [regularReelCount, postCount, momentCount, thoughtCount] = await Promise.all([
+    const [regularReelCount, postCount,
+       momentCount, thoughtCount] = await Promise.all([
       Reel.countDocuments({ user: targetUserId, type: "regular" }),
       Post.countDocuments({ user: targetUserId, type: "regular" }),
       Moment.countDocuments({ user: targetUserId, type: "regular" }),
