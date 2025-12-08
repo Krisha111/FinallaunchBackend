@@ -1,6 +1,6 @@
 // MiddleWare/authMiddleware.js
 import jwt from 'jsonwebtoken';
-import User from '../models/User.js'; // ✅ correct model
+import User from '../../model/User.js'; // ✅ correct model
 
 import dotenv from 'dotenv';
 dotenv.config(); // ✅ Load environment variables from .env
