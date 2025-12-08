@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect } from '../../MiddleWare/authMiddleware.js';
+import { protect } from '../MiddleWare/authMiddleware.js';
 import {
   getUnopenedChats,
   getNewChats,
@@ -7,7 +7,7 @@ import {
   markChatAsOpened,
   sendMessage,
   getChatMessages
-} from '../../controllers/chatController.js';
+} from '../../controller/Chat/ChatController.js';
 
 const router = express.Router();
 
