@@ -17,7 +17,7 @@ import requestRoutes from './routes/requestRoutes.js';
 import profileInformationRoutes from './routes/Profile/ProfileInformationRoute.js';
 import verifyToken from './MiddleWare/verifyToken.js';
 import reelRoutes from './routes/NewDrop/Reel.js';
-import chatRoute from './routes/Chat/ChatRoute.js';
+import chatRoutes from './routes/Chat/ChatRoute.js';
 import session from 'express-session';
 import profileStatsRoutes from './routes/Profile/profileStatsRoute.js';
 import MongoStore from 'connect-mongo';
