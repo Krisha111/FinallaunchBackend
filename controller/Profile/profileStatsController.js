@@ -4,6 +4,9 @@ import jwt from 'jsonwebtoken';
 import User from '../../model/User.js';
 import dotenv from 'dotenv';
 import mongoose from 'mongoose';
+import Post from '../../model/NewDrop/Post.js';
+import Moment from '../../model/NewDrop/Moment.js';
+import Thought from '../../model/NewDrop/Thought.js';
 
 dotenv.config();
 
