@@ -1,10 +1,5 @@
-
-import User from '../../model/User';
-import dotenv from 'dotenv';
-dotenv.config();
-import mongoose from 'mongoose';
-
-
+import { Message, Chat } from '../../model/Chat.js';
+import User from '../../model/User.js';
 
 export const searchUsers = async (req, res) => {
   try {
@@ -23,6 +18,132 @@ export const searchUsers = async (req, res) => {
     .limit(10);
 
     res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getMyChats = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    const chats = await Chat.find({
+      participants: userId
+    })
+    .populate('participants', '_id username profileImage bio')
+    .populate('lastMessageSender', '_id username')
+    .sort({ lastMessageTime: -1 });
+    
+    const formattedChats = chats.map(chat => {
+      const otherUser = chat.participants.find(
+        p => p._id.toString() !== userId.toString()
+      );
+      
+      const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
+      const hasMessages = chat.lastMessage && chat.lastMessage.length > 0;
+      
+      return {
+        _id: chat._id,
+        otherUser,
+        lastMessage: {
+          text: chat.lastMessage,
+          timestamp: chat.lastMessageTime,
+          sender: chat.lastMessageSender?._id,
+        },
+        hasMessages,
+        unreadCount,
+        isOpened: chat.isOpenedBy.includes(userId),
+      };
+    });
+    
+    res.json(formattedChats);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const getMessages = async (req, res) => {
+  try {
+    const { userId: otherUserId } = req.params;
+    const currentUserId = req.user._id;
+    
+    const messages = await Message.find({
+      $or: [
+        { senderId: currentUserId, receiverId: otherUserId },
+        { senderId: otherUserId, receiverId: currentUserId }
+      ]
+    })
+    .sort({ createdAt: 1 })
+    .limit(100);
+    
+    await Message.updateMany(
+      { senderId: otherUserId, receiverId: currentUserId, isRead: false },
+      { isRead: true, isOpened: true }
+    );
+    
+    const otherUser = await User.findById(otherUserId)
+      .select('_id username profileImage bio');
+    
+    const formattedMessages = messages.map(msg => ({
+      _id: msg._id,
+      text: msg.message,
+      sender: msg.senderId.toString() === currentUserId.toString() 
+        ? req.user.username 
+        : otherUser.username,
+      senderId: msg.senderId,
+      timestamp: msg.createdAt,
+      isRead: msg.isRead,
+    }));
+    
+    res.json({ messages: formattedMessages, otherUser });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const sendMessage = async (req, res) => {
+  try {
+    const { recipientId, message } = req.body;
+    const senderId = req.user._id;
+    
+    if (!message || !message.trim()) {
+      return res.status(400).json({ message: 'Message cannot be empty' });
+    }
+    
+    const newMessage = await Message.create({
+      senderId,
+      receiverId: recipientId,
+      message: message.trim(),
+    });
+    
+    let chat = await Chat.findOne({
+      participants: { $all: [senderId, recipientId] }
+    });
+    
+    if (!chat) {
+      chat = await Chat.create({
+        participants: [senderId, recipientId],
+        lastMessage: message.trim(),
+        lastMessageTime: new Date(),
+        lastMessageSender: senderId,
+        isOpenedBy: [senderId],
+        unreadCount: new Map([[recipientId.toString(), 1]]),
+      });
+    } else {
+      const currentUnread = chat.unreadCount.get(recipientId.toString()) || 0;
+      chat.unreadCount.set(recipientId.toString(), currentUnread + 1);
+      chat.lastMessage = message.trim();
+      chat.lastMessageTime = new Date();
+      chat.lastMessageSender = senderId;
+      
+      if (!chat.isOpenedBy.includes(senderId)) {
+        chat.isOpenedBy.push(senderId);
+      }
+      
+      await chat.save();
+    }
+    
+    res.status(201).json({ message: newMessage, chatId: chat._id });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

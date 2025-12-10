@@ -13,8 +13,7 @@ const messageSchema = new mongoose.Schema({
   },
   message: {
     type: String,
-    required: true,
-    trim: true
+    required: true
   },
   isRead: {
     type: Boolean,
@@ -33,7 +32,8 @@ const messageSchema = new mongoose.Schema({
 const chatSchema = new mongoose.Schema({
   participants: [{
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+    ref: 'User',
+    required: true
   }],
   lastMessage: {
     type: String,
@@ -47,21 +47,21 @@ const chatSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
-  unreadCount: {
-    type: Map,
-    of: Number,
-    default: {}
-  },
   isOpenedBy: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
-  }]
+  }],
+  unreadCount: {
+    type: Map,
+    of: Number,
+    default: new Map()
+  }
 }, {
   timestamps: true
 });
 
-chatSchema.index({ participants: 1 });
-messageSchema.index({ senderId: 1, receiverId: 1, createdAt: -1 });
+chatSchema.index({ participants: 1, lastMessageTime: -1 });
+messageSchema.index({ senderId: 1, receiverId: 1, createdAt: 1 });
 
 export const Message = mongoose.model('Message', messageSchema);
 export const Chat = mongoose.model('Chat', chatSchema);
