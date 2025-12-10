@@ -13,6 +13,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
+import chatRoutes from './routes/Chat/ChatRoute.js';
 import requestRoutes from './routes/requestRoutes.js';
 import profileInformationRoutes from './routes/Profile/ProfileInformationRoute.js';
 import verifyToken from './MiddleWare/verifyToken.js';
@@ -207,6 +208,9 @@ app.use(
 // ================================
 // ✅ ROUTES
 // ================================
+
+
+app.use('/api/chat', chatRoutes);
 app.use('/api/profile', profileStatsRoutes);
 app.use('/auth', signUpRouteUser);
 app.use('/', signInRouteUser);
@@ -215,6 +219,7 @@ app.use('/api/profileInformation', profileInformationRoutes);
 app.use('/api/requests', requestRoutes);
 
 app.use('/api/chats', chatRoutes);
+
 
 
 

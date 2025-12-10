@@ -1,23 +1,9 @@
 import express from 'express';
-import { protect } from '../MiddleWare/authMiddleware.js';
-import {
-  getUnopenedChats,
-  getNewChats,
-  getMemories,
-  markChatAsOpened,
-  sendMessage,
-  getChatMessages
-} from '../../controller/Chat/ChatController.js';
+import { searchUsers } from '../../controller/Chat/ChatController.js';
+import { protect } from '../../MiddleWare/authMiddleware.js';
 
 const router = express.Router();
 
-router.use(protect);
-
-router.get('/unopened', getUnopenedChats);
-router.get('/new', getNewChats);
-router.get('/memories', getMemories);
-router.put('/:chatId/open', markChatAsOpened);
-router.post('/send', sendMessage);
-router.get('/messages/:otherUserId', getChatMessages);
+router.get('/search-users', authenticateToken, searchUsers);
 
 export default router;
