@@ -148,3 +148,65 @@ export const sendMessage = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+// Add this new function to get new/pending chats
+export const getNewChats = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    // Find chats where user hasn't opened yet but has messages
+    const chats = await Chat.find({
+      participants: userId,
+      lastMessage: { $ne: '' },
+      isOpenedBy: { $ne: userId }
+    })
+    .populate('participants', '_id username profileImage bio')
+    .populate('lastMessageSender', '_id username')
+    .sort({ lastMessageTime: -1 })
+    .limit(10);
+    
+    const formattedChats = chats.map(chat => {
+      const otherUser = chat.participants.find(
+        p => p._id.toString() !== userId.toString()
+      );
+      
+      const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
+      
+      return {
+        _id: chat._id,
+        otherUser,
+        lastMessage: {
+          text: chat.lastMessage,
+          timestamp: chat.lastMessageTime,
+        },
+        unreadCount,
+        isNew: true,
+      };
+    });
+    
+    res.json(formattedChats);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const markChatAsOpened = async (req, res) => {
+  try {
+    const { otherUserId } = req.body;
+    const userId = req.user._id;
+
+    const chat = await Chat.findOne({
+      participants: { $all: [userId, otherUserId] }
+    });
+
+    if (chat && !chat.isOpenedBy.includes(userId)) {
+      chat.isOpenedBy.push(userId);
+      chat.unreadCount.set(userId.toString(), 0);
+      await chat.save();
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
