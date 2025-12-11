@@ -172,3 +172,40 @@ export const markChatAsOpened = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+export const getMyChats = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    const chats = await Chat.find({
+      participants: userId
+    })
+    .populate('participants', '_id username profileImage bio')
+    .populate('lastMessageSender', '_id username')
+    .sort({ lastMessageTime: -1 });
+    
+    const formattedChats = chats.map(chat => {
+      const otherUser = chat.participants.find(
+        p => p._id.toString() !== userId.toString()
+      );
+      
+      const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
+      const hasMessages = chat.lastMessage && chat.lastMessage.length > 0;
+      
+      return {
+        _id: chat._id,
+        otherUser,
+        lastMessage: {
+          text: chat.lastMessage,
+          timestamp: chat.lastMessageTime,
+          sender: chat.lastMessageSender?._id,
+        },
+        hasMessages,
+        unreadCount,
+      };
+    });
+    
+    res.json(formattedChats);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
