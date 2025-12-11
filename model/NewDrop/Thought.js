@@ -12,19 +12,19 @@ const thoughtSchema = new mongoose.Schema(
 
     // Main body and optional location
     thoughtText: { type: String, trim: true },
-    thoughtLocation: { type: String, trim: true },
+    // thoughtLocation: { type: String, trim: true },
 
     // Interaction / visibility flags
-    thoughtCommenting: { type: Boolean, default: true },
-    thoughtLikeCountVisible: { type: Boolean, default: true },
-    thoughtShareCountVisible: { type: Boolean, default: true },
-    thoughtPinned: { type: Boolean, default: false },
+    // thoughtCommenting: { type: Boolean, default: true },
+    // thoughtLikeCountVisible: { type: Boolean, default: true },
+    // thoughtShareCountVisible: { type: Boolean, default: true },
+    // thoughtPinned: { type: Boolean, default: false },
 
     // Single poster/cover image for list views
-    posterImage: { type: String, default: "" },
+    // posterImage: { type: String, default: "" },
 
     // Multiple images attached to the thought (required to mirror Reel/Post behavior)
-    photoThoughtImages: { type: [String], default: [], required: true },
+    // photoThoughtImages: { type: [String], default: [], required: true },
 
     // Type: keep parity with your other models; extend enum values if needed
     type: {

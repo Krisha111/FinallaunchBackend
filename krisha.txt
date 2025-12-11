@@ -1,0 +1,458 @@
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useNavigation } from "@react-navigation/native";
+import { useFocusEffect } from "@react-navigation/native";
+import axios from "axios";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSelector } from "react-redux";
+
+export default function NewChats() {
+  const navigation = useNavigation();
+  const [users, setUsers] = useState([]);
+  const [newChats, setNewChats] = useState([]);
+  const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const loggedInUserId = useSelector((state) => state.signUpAuth.user?._id);
+
+  useEffect(() => {
+    const loadToken = async () => {
+      try {
+        const storedToken = await
+         AsyncStorage.getItem("token");
+        if (storedToken) setToken(storedToken);
+      } catch (err) {
+        console.error("Failed to load token:", err);
+      }
+    };
+    loadToken();
+  }, []);
+
+  const fetchData = async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // Fetch new chats
+      const newChatsRes = await axios.get(
+        "https://finallaunchbackend.onrender.com/api/chat/new-chats",
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNewChats(newChatsRes.data || []);
+
+      // Fetch suggested users
+      const usersRes = await axios.get(
+        "https://finallaunchbackend.onrender.com/auth/getSignedUp",
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      const allUsers = Array.isArray(usersRes.data) ? usersRes.data : [];
+      const filteredUsers = allUsers
+        .filter(user => user._id !== loggedInUserId)
+        .slice(0, 10);
+      
+      setUsers(filteredUsers);
+    } catch (err) {
+      console.error("Error fetching data:", err);
+      setNewChats([]);
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (token) {
+        fetchData();
+      }
+    }, [token])
+  );
+
+  const handleUserPress = (user) => {
+    navigation.navigate("IndividualChat", {
+      userId: user._id,
+      username: user.username,
+    });
+  };
+
+  const handleNewChatPress = (chat) => {
+    navigation.navigate("IndividualChat", {
+      userId: chat.otherUser._id,
+      username: chat.otherUser.username,
+      chatId: chat._id,
+    });
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="small" color="#1a1a1a" />
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView
+      horizontal
+      contentContainerStyle={styles.rowContainer}
+      showsHorizontalScrollIndicator={false}
+    >
+      {/* New Incoming Chats */}
+      {newChats.map((chat) => (
+        <TouchableOpacity
+          key={chat._id}
+          style={styles.newChatBox}
+          activeOpacity={0.8}
+          onPress={() => handleNewChatPress(chat)}
+        >
+          {chat.otherUser?.profileImage ? (
+            <Image
+              source={{ uri: chat.otherUser.profileImage }}
+              style={styles.backgroundImage}
+              blurRadius={3}
+            />
+          ) : (
+            <>
+              <Image
+                source={require("../../../../assets/images/LogoWelCome.png")}
+                style={styles.emptyBackgroundImage}
+                resizeMode="cover"
+              />
+            </>
+          )}
+
+          <View style={styles.overlayDark} />
+
+          <View style={styles.newChatContent}>
+            <View style={styles.newMessageBadge}>
+              <Text style={styles.newMessageText}>
+                {chat.unreadCount} New {chat.unreadCount === 1 ? 'Message' : 'Messages'}
+              </Text>
+            </View>
+
+            <View style={styles.profilePicContainer}>
+              {chat.otherUser?.profileImage ? (
+                <Image
+                  source={{ uri: chat.otherUser.profileImage }}
+                  style={styles.profilePic}
+                />
+              ) : (
+                <View style={styles.profilePlaceholder}>
+                  <Ionicons name="person" size={32} color="#fff" />
+                </View>
+              )}
+            </View>
+
+            <Text style={styles.newChatUsername} numberOfLines={1}>
+              {chat.otherUser?.username || "Unknown"}
+            </Text>
+
+            <Text style={styles.lastMessagePreview} numberOfLines={2}>
+              {chat.lastMessage?.text || "New message"}
+            </Text>
+
+            <View style={styles.chatButton}>
+              <Ionicons name="chatbubble" size={16} color="#fff" />
+              <Text style={styles.chatButtonText}>Open Chat</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      ))}
+
+      {/* Start New Chat Box */}
+      <TouchableOpacity
+        style={styles.startChatBox}
+        onPress={() => navigation.navigate("ChatList")}
+        activeOpacity={0.8}
+      >
+        <Image
+          source={require("../../../../assets/images/LogoWelCome.png")}
+          style={styles.emptyBackgroundImage}
+          resizeMode="contain"
+        />
+
+        <View style={styles.overlayLight} />
+
+        <View style={{ alignItems: "center" }}>
+          <View style={styles.startChatIconContainer}>
+            <Ionicons name="add-circle" size={48} color="#1a1a1a" />
+          </View>
+          <Text style={styles.startChatText}>Start New Chat</Text>
+        </View>
+      </TouchableOpacity>
+
+      {/* Suggested Users */}
+      {users.map((user) => (
+        <TouchableOpacity
+          key={user._id}
+          style={styles.userChatBox}
+          activeOpacity={0.8}
+          onPress={() => handleUserPress(user)}
+        >
+          {user.profileImage ? (
+            <Image
+              source={{ uri: user.profileImage }}
+              style={styles.backgroundImage}
+              blurRadius={2}
+            />
+          ) : (
+            <>
+              <Image
+                source={require("../../../../assets/images/LogoWelCome.png")}
+                style={styles.emptyBackgroundImage}
+                resizeMode="cover"
+              />
+              <View style={styles.overlay} />
+            </>
+          )}
+
+          <View style={styles.overlay} />
+
+          <View style={styles.userBoxContent}>
+            <View style={styles.profilePicContainer}>
+              {user.profileImage ? (
+                <Image
+                  source={{ uri: user.profileImage }}
+                  style={styles.profilePic}
+                />
+              ) : (
+                <View style={styles.profilePlaceholder}>
+                  <Ionicons name="person" size={32} color="#fff" />
+                </View>
+              )}
+            </View>
+
+            <Text style={styles.username} numberOfLines={1}>
+              {user.username || "Unknown"}
+            </Text>
+
+            {user.bio && (
+              <Text style={styles.bioPreview} numberOfLines={2}>
+                {user.bio}
+              </Text>
+            )}
+
+            <View style={styles.chatButton}>
+              <Ionicons name="chatbubble" size={16} color="#fff" />
+              <Text style={styles.chatButtonText}>Chat</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
+      ))}
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  emptyBackgroundImage: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+  },
+  overlayLight: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+  },
+  overlayDark: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+  },
+  rowContainer: {
+    paddingLeft: 10,
+    paddingRight: 20,
+    alignItems: "flex-start",
+  },
+  loadingContainer: {
+    height: 200,
+    width: 175,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 10,
+  },
+
+  // New Chat Box (Incoming Messages)
+  newChatBox: {
+    height: 200,
+    width: 175,
+    borderRadius: 20,
+    marginRight: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 8,
+    borderWidth: 2,
+    borderColor: "#1a1a1a",
+  },
+  newChatContent: {
+    flex: 1,
+    padding: 14,
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  newMessageBadge: {
+    backgroundColor: "#ff4444",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    alignSelf: "center",
+  },
+  newMessageText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.3,
+  },
+  newChatUsername: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#fff",
+    textAlign: "center",
+    marginTop: 6,
+    textShadowColor: "rgba(0, 0, 0, 0.9)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  lastMessagePreview: {
+    fontSize: 12,
+    color: "#fff",
+    textAlign: "center",
+    opacity: 0.95,
+    marginTop: 4,
+    paddingHorizontal: 6,
+    textShadowColor: "rgba(0, 0, 0, 0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+    fontWeight: "600",
+  },
+
+  // Start Chat Box
+  startChatBox: {
+    backgroundColor: "#f0f0f0",
+    height: 200,
+    width: 175,
+    borderRadius: 20,
+    marginRight: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#e8e8e8",
+    borderStyle: "dashed",
+  },
+  startChatIconContainer: {
+    marginBottom: 12,
+  },
+  startChatText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#1a1a1a",
+    textAlign: "center",
+  },
+
+  // User Chat Box
+  userChatBox: {
+    height: 200,
+    width: 175,
+    borderRadius: 20,
+    marginRight: 20,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  backgroundImage: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+  },
+  overlay: {
+    position: "absolute",
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+  },
+  userBoxContent: {
+    flex: 1,
+    padding: 16,
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  profilePicContainer: {
+    marginTop: 8,
+  },
+  profilePic: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 3,
+    borderColor: "#fff",
+  },
+  profilePlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#fff",
+  },
+  username: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+    marginTop: 8,
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  bioPreview: {
+    fontSize: 11,
+    color: "#fff",
+    textAlign: "center",
+    opacity: 0.9,
+    marginTop: 4,
+    paddingHorizontal: 8,
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  chatButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.25)",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    gap: 6,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.4)",
+  },
+  chatButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+});
