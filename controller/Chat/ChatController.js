@@ -23,45 +23,6 @@ export const searchUsers = async (req, res) => {
   }
 };
 
-export const getMyChats = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    
-    const chats = await Chat.find({
-      participants: userId
-    })
-    .populate('participants', '_id username profileImage bio')
-    .populate('lastMessageSender', '_id username')
-    .sort({ lastMessageTime: -1 });
-    
-    const formattedChats = chats.map(chat => {
-      const otherUser = chat.participants.find(
-        p => p._id.toString() !== userId.toString()
-      );
-      
-      const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
-      const hasMessages = chat.lastMessage && chat.lastMessage.length > 0;
-      
-      return {
-        _id: chat._id,
-        otherUser,
-        lastMessage: {
-          text: chat.lastMessage,
-          timestamp: chat.lastMessageTime,
-          sender: chat.lastMessageSender?._id,
-        },
-        hasMessages,
-        unreadCount,
-        isOpened: chat.isOpenedBy.includes(userId),
-      };
-    });
-    
-    res.json(formattedChats);
-  } catch (error) {
-    res.status(500).json({ message: error.message });
-  }
-};
-
 export const getMessages = async (req, res) => {
   try {
     const { userId: otherUserId } = req.params;
@@ -76,9 +37,10 @@ export const getMessages = async (req, res) => {
     .sort({ createdAt: 1 })
     .limit(100);
     
+    // Only mark messages as read, DON'T mark chat as opened here
     await Message.updateMany(
       { senderId: otherUserId, receiverId: currentUserId, isRead: false },
-      { isRead: true, isOpened: true }
+      { isRead: true }
     );
     
     const otherUser = await User.findById(otherUserId)
@@ -149,40 +111,40 @@ export const sendMessage = async (req, res) => {
   }
 };
 
-// Add this new function to get new/pending chats
 export const getNewChats = async (req, res) => {
   try {
     const userId = req.user._id;
     
-    // Find chats where user hasn't opened yet but has messages
     const chats = await Chat.find({
       participants: userId,
-      lastMessage: { $ne: '' },
-      isOpenedBy: { $ne: userId }
+      lastMessage: { $ne: '' }
     })
     .populate('participants', '_id username profileImage bio')
     .populate('lastMessageSender', '_id username')
-    .sort({ lastMessageTime: -1 })
-    .limit(10);
+    .sort({ lastMessageTime: -1 });
     
-    const formattedChats = chats.map(chat => {
-      const otherUser = chat.participants.find(
-        p => p._id.toString() !== userId.toString()
-      );
-      
-      const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
-      
-      return {
-        _id: chat._id,
-        otherUser,
-        lastMessage: {
-          text: chat.lastMessage,
-          timestamp: chat.lastMessageTime,
-        },
-        unreadCount,
-        isNew: true,
-      };
-    });
+    const formattedChats = chats
+      .filter(chat => {
+        const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
+        return unreadCount > 0;
+      })
+      .map(chat => {
+        const otherUser = chat.participants.find(
+          p => p._id.toString() !== userId.toString()
+        );
+        
+        const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
+        
+        return {
+          _id: chat._id,
+          otherUser,
+          lastMessage: {
+            text: chat.lastMessage,
+            timestamp: chat.lastMessageTime,
+          },
+          unreadCount,
+        };
+      });
     
     res.json(formattedChats);
   } catch (error) {
