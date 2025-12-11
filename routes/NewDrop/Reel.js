@@ -31,6 +31,7 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
 // ✅ ADD IMAGE UPLOAD ROUTE
 const imageStorage = new CloudinaryStorage({
   cloudinary,
@@ -43,6 +44,7 @@ const imageStorage = new CloudinaryStorage({
 });
 
 const imageUpload = multer({ storage: imageStorage });
+
 // ✅ Storage for reels (videos/images)
 const storage = new CloudinaryStorage({
   cloudinary,
@@ -65,8 +67,8 @@ const audioStorage = new CloudinaryStorage({
   cloudinary,
   params: {
     folder: 'comment_audio',
-    resource_type: 'video', // ✅ Changed from 'auto' to 'video' (handles audio)
-    allowed_formats: ['mp3', 'm4a', 'wav', 'ogg', 'mp4', 'aac'], // ✅ Added mp4 and aac
+    resource_type: 'video',
+    allowed_formats: ['mp3', 'm4a', 'wav', 'ogg', 'mp4', 'aac'],
   },
 });
 
@@ -98,7 +100,6 @@ router.get('/saved', protect, getSavedReels);
 router.post('/:reelId/like', protect, likeReel);
 router.post('/comments/:reelId', protect, addCommentToReel);
 router.delete('/comments/:reelId/:commentId', protect, deleteReelComment);
-
 
 router.post('/upload/image', protect, imageUpload.single('image'), (req, res) => {
   if (!req.file) {

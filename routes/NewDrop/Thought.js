@@ -5,14 +5,14 @@
 import express from 'express';
 import multer from 'multer';
 import {
-  createThought,
+  createThoughtPost,
   getAllThoughts,
-  getMyThoughts,
+  getMyThoughtPosts,
   saveThought,
   getSavedThoughts,
   addCommentToThought,
   likeThought,
-  getAllThoughtsDrop,
+  getAllThoughtPosts,
   commentOnThought,
   getThoughtsByUserId,
   deleteThought,
@@ -45,19 +45,15 @@ const imageStorage = new CloudinaryStorage({
 
 const imageUpload = multer({ storage: imageStorage });
 
-// ✅ Storage for thoughts (videos/images)
+// ✅ Storage for thoughts (no file uploads for thoughts - text only)
 const storage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
-    const folder = file.fieldname === 'poster' ? 'thought_posters' : 'thought_files';
+    const folder = 'thought_files';
     return {
       folder,
       resource_type: 'auto',
       allowed_formats: ['jpg', 'png', 'jpeg', 'mp4', 'mov'],
-      transformation:
-        file.fieldname === 'poster'
-          ? [{ width: 1080, height: 1920, crop: 'limit' }]
-          : [],
     };
   },
 });
@@ -80,21 +76,13 @@ const audioUpload = multer({ storage: audioStorage });
 // ================================
 
 router.get('/user/:userId', getThoughtsByUserId);
-router.get('/all', getAllThoughtsDrop);
+router.get('/all', getAllThoughts);
 router.delete('/:thoughtId', protect, deleteThought);
 
-router.post(
-  '/newThoughtDrop',
-  protect,
-  upload.fields([
-    { name: 'poster', maxCount: 1 },
-    { name: 'thoughtFiles', maxCount: 10 },
-  ]),
-  createThought
-);
+router.post('/newThoughtDrop', protect, createThoughtPost);
 
-router.get('/getNewThoughtDrop', protect, getAllThoughts);
-router.get('/mine', protect, getMyThoughts);
+router.get('/getNewThoughtDrop', protect, getAllThoughtPosts);
+router.get('/mine', protect, getMyThoughtPosts);
 router.post('/save/:thoughtId', protect, saveThought);
 router.get('/saved', protect, getSavedThoughts);
 router.post('/:thoughtId/like', protect, likeThought);

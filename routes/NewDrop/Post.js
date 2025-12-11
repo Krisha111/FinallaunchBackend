@@ -5,14 +5,14 @@
 import express from 'express';
 import multer from 'multer';
 import {
-  createPost,
+  createPostPost,
   getAllPosts,
-  getMyPosts,
+  getMyPostPosts,
   savePost,
   getSavedPosts,
   addCommentToPost,
   likePost,
-  getAllPostsDrop,
+  getAllPostPosts,
   commentOnPost,
   getPostsByUserId,
   deletePost,
@@ -80,7 +80,7 @@ const audioUpload = multer({ storage: audioStorage });
 // ================================
 
 router.get('/user/:userId', getPostsByUserId);
-router.get('/all', getAllPostsDrop);
+router.get('/all', getAllPosts);
 router.delete('/:postId', protect, deletePost);
 
 router.post(
@@ -90,11 +90,11 @@ router.post(
     { name: 'poster', maxCount: 1 },
     { name: 'postFiles', maxCount: 10 },
   ]),
-  createPost
+  createPostPost
 );
 
-router.get('/getNewPostDrop', protect, getAllPosts);
-router.get('/mine', protect, getMyPosts);
+router.get('/getNewPostDrop', protect, getAllPostPosts);
+router.get('/mine', protect, getMyPostPosts);
 router.post('/save/:postId', protect, savePost);
 router.get('/saved', protect, getSavedPosts);
 router.post('/:postId/like', protect, likePost);
