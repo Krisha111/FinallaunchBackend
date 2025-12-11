@@ -5,14 +5,14 @@
 import express from 'express';
 import multer from 'multer';
 import {
-  createMomentPost ,
+  createMomentPost,
   getAllMoments,
-  getMyMoments,
+  getMyMomentPosts,
   saveMoment,
   getSavedMoments,
   addCommentToMoment,
   likeMoment,
-  getAllMomentsDrop,
+  getAllMomentPosts,
   commentOnMoment,
   getMomentsByUserId,
   deleteMoment,
@@ -49,15 +49,13 @@ const imageUpload = multer({ storage: imageStorage });
 const storage = new CloudinaryStorage({
   cloudinary,
   params: async (req, file) => {
-    const folder = file.fieldname === 'poster' ? 'moment_posters' : 'moment_files';
+    const folder = file.fieldname === 'momentPhotos' || file.fieldname === 'momentVideos' 
+      ? 'moment_files' 
+      : 'moment_posters';
     return {
       folder,
       resource_type: 'auto',
-      allowed_formats: ['jpg', 'png', 'jpeg', 'mp4', 'mov'],
-      transformation:
-        file.fieldname === 'poster'
-          ? [{ width: 1080, height: 1920, crop: 'limit' }]
-          : [],
+      allowed_formats: ['jpg', 'png', 'jpeg', 'mp4', 'mov', 'webp'],
     };
   },
 });
@@ -80,21 +78,21 @@ const audioUpload = multer({ storage: audioStorage });
 // ================================
 
 router.get('/user/:userId', getMomentsByUserId);
-router.get('/all', getAllMomentsDrop);
+router.get('/all', getAllMoments);
 router.delete('/:momentId', protect, deleteMoment);
 
 router.post(
   '/newMomentDrop',
   protect,
   upload.fields([
-    { name: 'poster', maxCount: 1 },
-    { name: 'momentFiles', maxCount: 10 },
+    { name: 'momentPhotos', maxCount: 10 },
+    { name: 'momentVideos', maxCount: 10 },
   ]),
   createMomentPost 
 );
 
-router.get('/getNewMomentDrop', protect, getAllMoments);
-router.get('/mine', protect, getMyMoments);
+router.get('/getNewMomentDrop', protect, getAllMomentPosts);
+router.get('/mine', protect, getMyMomentPosts);
 router.post('/save/:momentId', protect, saveMoment);
 router.get('/saved', protect, getSavedMoments);
 router.post('/:momentId/like', protect, likeMoment);
