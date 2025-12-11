@@ -5,7 +5,7 @@
 import express from 'express';
 import multer from 'multer';
 import {
-  createMoment,
+  createMomentPost ,
   getAllMoments,
   getMyMoments,
   saveMoment,
@@ -90,7 +90,7 @@ router.post(
     { name: 'poster', maxCount: 1 },
     { name: 'momentFiles', maxCount: 10 },
   ]),
-  createMoment
+  createMomentPost 
 );
 
 router.get('/getNewMomentDrop', protect, getAllMoments);
