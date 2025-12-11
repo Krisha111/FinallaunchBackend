@@ -106,35 +106,17 @@ export const getAllThoughts = async (req, res) => {
 
 export const createThoughtPost = async (req, res) => {
   try {
-    const {
-      thoughtText,
-      thoughtLocation,
-      thoughtCommenting,
-      thoughtLikeCountVisible,
-      thoughtShareCountVisible,
-      thoughtPinned,
-      type,
-    } = req.body;
+    const { thoughtText } = req.body;
 
-    const posterFile = req.files?.poster ? req.files.poster[0] : null;
-    const thoughtFiles = req.files?.thoughtFiles || [];
-
-    if (!posterFile) return res.status(400).json({ message: "Missing poster file" });
-
-    const posterImage = posterFile.path || "";
-    const photoThoughtImages = thoughtFiles.map((file) => file.path);
+    // ✅ Validate text is provided
+    if (!thoughtText || thoughtText.trim() === '') {
+      return res.status(400).json({ message: "Thought text is required" });
+    }
 
     const newThought = new Thought({
       user: req.user._id,
-      thoughtText,
-      thoughtLocation,
-      thoughtCommenting: thoughtCommenting ?? true,
-      thoughtLikeCountVisible: thoughtLikeCountVisible ?? true,
-      thoughtShareCountVisible: thoughtShareCountVisible ?? true,
-      thoughtPinned: thoughtPinned ?? false,
-      posterImage,
-      photoThoughtImages,
-      type: type || "regular",
+      thoughtText: thoughtText.trim(),
+      type: "regular",
     });
 
     await newThought.save();
@@ -144,13 +126,18 @@ export const createThoughtPost = async (req, res) => {
       "username profileImage email"
     );
 
-    res.status(201).json({ message: "Thought created successfully", thought: populatedThought });
+    res.status(201).json({ 
+      message: "Thought created successfully", 
+      thought: populatedThought 
+    });
   } catch (err) {
     console.error("❌ Error creating thought:", err);
-    res.status(500).json({ message: "Error creating thought", error: err.toString() });
+    res.status(500).json({ 
+      message: "Error creating thought", 
+      error: err.toString() 
+    });
   }
 };
-
 export const getAllThoughtPosts = async (req, res) => {
   try {
     const userId = req.user?._id;

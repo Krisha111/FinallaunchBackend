@@ -124,21 +124,26 @@ export const getAllMoments = async (req, res) => {
 // =======================================================
 export const createMomentPost = async (req, res) => {
   try {
-    const momentFiles = req.files?.momentFiles || [];
+    const momentPhotos = req.files?.momentPhotos || [];
+    const momentVideos = req.files?.momentVideos || [];
 
-    if (momentFiles.length === 0) {
-      return res.status(400).json({ message: "No moment images uploaded" });
+    // ✅ Validate at least one media type
+    if (momentPhotos.length === 0 && momentVideos.length === 0) {
+      return res.status(400).json({ 
+        message: "At least one photo or video is required for a moment" 
+      });
     }
 
-    const photoMomentImages = momentFiles.map(file => file.path);
+    const photoMomentImages = momentPhotos.map(file => file.path);
+    const videoMomentFiles = momentVideos.map(file => file.path);
 
-    // Log upload info
-    console.log("📸 Uploaded Moment Images:");
-    photoMomentImages.forEach((img, i) => console.log(`Image ${i + 1}: ${img}`));
+    console.log("📸 Moment Photos:", photoMomentImages);
+    console.log("🎥 Moment Videos:", videoMomentFiles);
 
     const newMoment = new Moment({
       user: req.user._id,
       photoMomentImages,
+      videoMomentFiles,
       type: "regular"
     });
 
@@ -159,7 +164,6 @@ export const createMomentPost = async (req, res) => {
     });
   }
 };
-
 // =======================================================
 //  GET MOMENTS OF AUTHENTICATED USER
 // =======================================================
