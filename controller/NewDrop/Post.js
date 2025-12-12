@@ -113,14 +113,6 @@ export const getAllPosts = async (req, res) => {
 };
 
 export const createPostPost = async (req, res) => {
-  const { postCaption, postLocation } = req.body;
-  const postFile = req.files?.postFiles ? req.files.postFiles[0] : null;
-  const posterFile = req.files?.poster ? req.files.poster[0] : null;
-
-  if (!postFile || !posterFile) {
-    return res.status(400).json({ message: "Missing image or poster file" });
-  }
-
   try {
     const {
       postCaption,
@@ -136,30 +128,16 @@ export const createPostPost = async (req, res) => {
     const posterFile = req.files?.poster ? req.files.poster[0] : null;
     const postFiles = req.files?.postFiles || [];
 
-    // ✅ Expecting poster and multiple post files
+    if (!postFiles.length || !posterFile) {
+      return res.status(400).json({ message: "Missing image or poster file" });
+    }
+
+    // ✅ Cloudinary URLs
     const posterImage = posterFile?.path || "";
-    const photoPostImages = postFiles.map(file => file.path); // ✅ Cloudinary URL
+    const photoPostImages = postFiles.map(file => file.path);
 
-    // Build array and log each uploaded file (fix: logging inside loop)
-    if (postFiles.length) {
-      console.log("📸 ====== Uploaded Image Files ======");
-      postFiles.forEach((file, index) => {
-        const fileUrl = `${BASE_URL}/uploads/${file.filename}`;
-        console.log(`🖼️ Image ${index + 1} URL: ${fileUrl}`);
-        photoPostImages.push(fileUrl);
-      });
-      console.log("=====================================");
-    } else {
-      console.log("⚠️ No post files uploaded.");
-    }
-
-    if (posterFile) {
-      console.log(`🖼️ Poster Image URL: ${BASE_URL}/uploads/${posterFile.filename}`);
-    }
-
-    // Log body & file info (for debugging)
-    console.log("🧾 req.body:", req.body);
-    console.log("📂 req.files:", req.files);
+    console.log("📸 Uploaded files:", photoPostImages);
+    console.log("🖼️ Poster:", posterImage);
 
     const newPost = new Post({
       user: req.user._id,
@@ -169,7 +147,7 @@ export const createPostPost = async (req, res) => {
       postLikeCountVisible: postLikeCountVisible ?? true,
       postShareCountVisible: postShareCountVisible ?? true,
       postPinned: postPinned ?? false,
-      posterImage, // ✅ save poster
+      posterImage,
       photoPostImages,
       type: type || "regular",
     });
@@ -181,10 +159,7 @@ export const createPostPost = async (req, res) => {
       "username profileImage email"
     );
 
-    console.log("✅ Post successfully created for user:", req.user?._id);
-    console.log("✅ Post DB ID:", newPost._id);
-    console.log("✅ Image URLs saved:", photoPostImages);
-    console.log("✅ Poster URL saved:", posterImage);
+    console.log("✅ Post created:", newPost._id);
 
     res.status(201).json({
       message: "Post created successfully",

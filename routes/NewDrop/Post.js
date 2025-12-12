@@ -84,7 +84,7 @@ router.get('/all', getAllPosts);
 router.delete('/:postId', protect, deletePost);
 
 router.post(
-  '/createNewPostDrop',  // ✅ CORRECT - Matches frontend call
+  '/createNewPostDrop',
   protect,
   upload.fields([
     { name: 'poster', maxCount: 1 },
