@@ -19,21 +19,16 @@ export const getPostsByUserId = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // 🔒 Validate userId before querying
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: "Invalid user ID" });
     }
 
-    // ✅ Fetch posts for this user
     const posts = await Post.find({ user: userId })
       .populate("user", "username profileImage bio")
-      .populate('comments.user', 'username profileImage') // populate only needed fields
+      .populate('comments.user', 'username profileImage')
       .sort({ createdAt: -1 });
 
-    if (!posts || posts.length === 0) {
-      return res.status(404).json({ message: "No posts found for this user" });
-    }
-
+    // ✅ Return empty array instead of 404
     res.json(posts);
   } catch (err) {
     console.error("❌ Error fetching posts by user ID:", err);
