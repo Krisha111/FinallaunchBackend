@@ -191,17 +191,18 @@ export const getMyChats = async (req, res) => {
       const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
       const hasMessages = chat.lastMessage && chat.lastMessage.length > 0;
       
-      return {
-        _id: chat._id,
-        otherUser,
-        lastMessage: {
-          text: chat.lastMessage,
-          timestamp: chat.lastMessageTime,
-          sender: chat.lastMessageSender?._id,
-        },
-        hasMessages,
-        unreadCount,
-      };
+    return {
+  _id: chat._id,
+  otherUser,
+  lastMessage: {
+    text: chat.lastMessage,
+    timestamp: chat.lastMessageTime,
+    sender: chat.lastMessageSender?._id,
+  },
+  hasMessages,
+  unreadCount,
+  isOpenedBy: chat.isOpenedBy.includes(userId), // Add this line
+};
     });
     
     res.json(formattedChats);
