@@ -8,7 +8,7 @@ const momentSchema = new mongoose.Schema(
       required: true,
     },
 
-    // Either photos OR videos (at least one required)
+    // ✅ Either photos OR videos (at least one required)
     photoMomentImages: { type: [String], default: [] },
     videoMomentFiles: { type: [String], default: [] },
 
@@ -38,7 +38,7 @@ const momentSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Validation: at least one media type required
+// ✅ Validation: at least one media type required
 momentSchema.pre('save', function(next) {
   if (this.photoMomentImages.length === 0 && this.videoMomentFiles.length === 0) {
     next(new Error('Moment must have at least one photo or video'));

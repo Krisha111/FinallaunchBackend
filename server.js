@@ -264,7 +264,7 @@ let roomStates = {};
 // ✅ Pending invites - OUTSIDE connection handler (persists across connections)
 const pendingInvites = new Map();
 const connectedUsers = new Map();
- 
+
 // ✅ Track already-sent invites to avoid duplicates
 const sentInvites = new Set();
 const userSockets = new Map();
@@ -279,20 +279,20 @@ io.on('connection', (socket) => {
   // ================================
   socket.on('cancel_invite', ({ to, from }) => {
     console.log(`❌ ${from} cancelled invite to ${to}`);
-    
+
     const userInvites = pendingInvites.get(to) || [];
     const inviteIndex = userInvites.findIndex((inv) => inv.from === from && inv.status === 'pending');
-    
+
     if (inviteIndex !== -1) {
       const inviteId = userInvites[inviteIndex].id;
-      
+
       if (inviteTimers.has(inviteId)) {
         clearTimeout(inviteTimers.get(inviteId));
         inviteTimers.delete(inviteId);
       }
-      
+
       userInvites.splice(inviteIndex, 1);
-      
+
       const recipientUser = userssample[to];
       if (recipientUser?.socketId) {
         const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
@@ -303,7 +303,7 @@ io.on('connection', (socket) => {
         }
       }
     }
-    
+
     socket.emit('invite_cancelled_confirm', { to });
   });
 
@@ -317,17 +317,17 @@ io.on('connection', (socket) => {
     }
 
     console.log(`📍 User ${userId} joining room (socket: ${socket.id})`);
-    
+
     socket.join(userId);
     connectedUsers.set(userId, socket.id);
-    
+
     console.log(`✅ User ${userId} joined their room`);
     console.log(`👥 Total connected users: ${connectedUsers.size}`);
   });
 
   socket.on('leave_user_room', (userId) => {
     if (!userId) return;
-    
+
     console.log(`📤 User ${userId} leaving room`);
     socket.leave(userId);
     connectedUsers.delete(userId);
@@ -344,16 +344,16 @@ io.on('connection', (socket) => {
   socket.on('register', async ({ username, userId }) => {
     if (!username) return;
     console.log(`✅ Registered: ${username} (${userId})`);
-    socket.join(userId.toString()); 
+    socket.join(userId.toString());
     socket.username = username;
     socket.userId = userId;
 
     let profileImage = '';
     let bio = '';
-    
+
     userSockets.set(userId.toString(), socket.id);
     socket.join(userId.toString());
-    
+
     try {
       const user = await User.findOne({ username });
       if (user?.profileImage) profileImage = user.profileImage;
@@ -379,13 +379,13 @@ io.on('connection', (socket) => {
   // ================================
   socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
     console.log(`✅ ${to} accepting invite from ${from} via notification`);
-    
-      // ✅ Use the destructured parameters
-  io.to(from).emit('invite_removed', { inviteId });
-  io.to(to).emit('invite_removed', { inviteId });
+
+    // ✅ Use the destructured parameters
+    io.to(from).emit('invite_removed', { inviteId });
+    io.to(to).emit('invite_removed', { inviteId });
     // ✅ NEW: Emit to both users to remove the invite
-  // io.to(data.from).emit('invite_removed', { inviteId: data.inviteId });
-  // io.to(data.to).emit('invite_removed', { inviteId: data.inviteId });
+    // io.to(data.from).emit('invite_removed', { inviteId: data.inviteId });
+    // io.to(data.to).emit('invite_removed', { inviteId: data.inviteId });
     if (inviteTimers.has(inviteId)) {
       clearTimeout(inviteTimers.get(inviteId));
       inviteTimers.delete(inviteId);
@@ -405,7 +405,7 @@ io.on('connection', (socket) => {
     }
 
     const room = `${from}-${to}`;
-    
+
     socket.join(room);
 
     const fromUser = userssample[from];
@@ -458,20 +458,20 @@ io.on('connection', (socket) => {
   //     console.log(`🔔 Notification sent to ${receiverId}`);
   //   }
   // });
-socket.on('send-notification', (data) => {
-  const { receiverId } = data;
-  
-  // Use userSockets instead of onlineUsers
-  const receiverSocket = userSockets.get(receiverId?.toString());
-  
-  if (receiverSocket) {
-    // Emit to specific socket only ONCE
-    io.to(receiverSocket).emit('new_notification', data);
-    console.log(`🔔 Notification sent to ${receiverId}`);
-  } else {
-    console.log(`⚠️ Receiver ${receiverId} not connected`);
-  }
-});
+  socket.on('send-notification', (data) => {
+    const { receiverId } = data;
+
+    // Use userSockets instead of onlineUsers
+    const receiverSocket = userSockets.get(receiverId?.toString());
+
+    if (receiverSocket) {
+      // Emit to specific socket only ONCE
+      io.to(receiverSocket).emit('new_notification', data);
+      console.log(`🔔 Notification sent to ${receiverId}`);
+    } else {
+      console.log(`⚠️ Receiver ${receiverId} not connected`);
+    }
+  });
   socket.on('change_reel', ({ room, reelUrl }) => {
     io.to(room).emit('reel_updated', { reelUrl });
     console.log(`🎬 Reel changed in room ${room}`);
@@ -506,13 +506,13 @@ socket.on('send-notification', (data) => {
 
     const timer = setTimeout(() => {
       console.log(`⏰ Invite ${inviteId} expired after 1 minute`);
-      
+
       const userInvites = pendingInvites.get(to) || [];
       const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
-      
+
       if (inviteIndex !== -1 && userInvites[inviteIndex].status === 'pending') {
         userInvites[inviteIndex].status = 'expired';
-        
+
         const recipientUser = userssample[to];
         if (recipientUser?.socketId) {
           const recipientSocket = io.sockets.sockets.get(recipientUser.socketId);
@@ -522,7 +522,7 @@ socket.on('send-notification', (data) => {
             recipientSocket.emit('pending_invites', pendingOnly);
           }
         }
-        
+
         const senderUser = userssample[from];
         if (senderUser?.socketId) {
           const senderSocket = io.sockets.sockets.get(senderUser.socketId);
@@ -531,7 +531,7 @@ socket.on('send-notification', (data) => {
           }
         }
       }
-      
+
       inviteTimers.delete(inviteId);
     }, 60000);
 
@@ -563,16 +563,16 @@ socket.on('send-notification', (data) => {
     console.log(`📬 Sent ${pendingOnly.length} pending invites to ${username}`);
   });
 
-  
+
   // ================================
   // ✅ REJECT INVITE
   // ================================
   socket.on('reject_invite', ({ inviteId, username }) => {
     const userInvites = pendingInvites.get(username) || [];
     const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
-   io.to(username).emit('invite_removed', { inviteId });
+    io.to(username).emit('invite_removed', { inviteId });
     // ✅ NEW: Emit to both users to remove the invite
-  // io.to(data.username).emit('invite_removed', { inviteId: data.inviteId });
+    // io.to(data.username).emit('invite_removed', { inviteId: data.inviteId });
     if (inviteTimers.has(inviteId)) {
       clearTimeout(inviteTimers.get(inviteId));
       inviteTimers.delete(inviteId);
@@ -592,21 +592,21 @@ socket.on('send-notification', (data) => {
   // ================================
   socket.on('accept_invite', ({ from }) => {
     console.log(`✅ ${socket.username} accepting invite from ${from}`);
-    
+
     const room = `${from}-${socket.username}`;
     socket.join(room);
 
     const userInvites = pendingInvites.get(socket.username) || [];
     const inviteIndex = userInvites.findIndex((inv) => inv.from === from && inv.status === 'pending');
-    
+
     if (inviteIndex !== -1) {
       const inviteId = userInvites[inviteIndex].id;
-      
+
       if (inviteTimers.has(inviteId)) {
         clearTimeout(inviteTimers.get(inviteId));
         inviteTimers.delete(inviteId);
       }
-      
+
       userInvites.splice(inviteIndex, 1);
     }
 
@@ -665,85 +665,85 @@ socket.on('send-notification', (data) => {
   // ================================
   // ✅ SYNC REEL INDEX
   // ================================
-socket.on('sync_reel_index', ({ room, index }) => {
-  // ✅ Allow anyone to sync, not just admin
-  if (roomStates[room]) {
-    roomStates[room].currentIndex = index;
-  } else {
-    roomStates[room] = { currentIndex: index, isPlaying: true };
-  }
-  console.log(
-    `🔄 ${socket.username} synced reel index to ${index} in room ${room}`
-  );
-  // ✅ Broadcast to everyone in room including sender
-  io.to(room).emit('sync_reel_index', { index });
-});
+  socket.on('sync_reel_index', ({ room, index }) => {
+    // ✅ Allow anyone to sync, not just admin
+    if (roomStates[room]) {
+      roomStates[room].currentIndex = index;
+    } else {
+      roomStates[room] = { currentIndex: index, isPlaying: true };
+    }
+    console.log(
+      `🔄 ${socket.username} synced reel index to ${index} in room ${room}`
+    );
+    // ✅ Broadcast to everyone in room including sender
+    io.to(room).emit('sync_reel_index', { index });
+  });
 
-// ================================
-// ✅ SEND ACTIVITY
-// ================================
-socket.on('send_activity', ({ room, activity, username }) => {
-  console.log(`📊 Activity in ${room}: ${username} - ${activity}`);
-  socket.to(room).emit('user_activity', { activity, username });
-});
+  // ================================
+  // ✅ SEND ACTIVITY
+  // ================================
+  socket.on('send_activity', ({ room, activity, username }) => {
+    console.log(`📊 Activity in ${room}: ${username} - ${activity}`);
+    socket.to(room).emit('user_activity', { activity, username });
+  });
 
   // ================================
   // ✅ REEL PLAY STATE
   // ================================
- socket.on('reel_play', ({ room, index, isPlaying }) => {
-  // ✅ Allow anyone to control play state, not just admin
-  if (roomStates[room]) {
-    roomStates[room].currentIndex = index;
-    roomStates[room].isPlaying = isPlaying;
-  } else {
-    roomStates[room] = { currentIndex: index, isPlaying };
-  }
-  console.log(
-    `▶️ ${socket.username} set play state: index=${index}, isPlaying=${isPlaying} in room ${room}`
-  );
-  // ✅ Broadcast to everyone in room including sender
-  io.to(room).emit('reel_play_state', { index, isPlaying });
-});
-// Add this new event handler in your socket configuration
-socket.on('request_room_reel_order', ({ room }, callback) => {
-  console.log(`📋 Room ${room} requesting reel order`);
-  
-  // Check if this room already has a reel order stored
-  if (!global.roomReelOrders) {
-    global.roomReelOrders = {};
-  }
-  
-  if (global.roomReelOrders[room]) {
-    // Return existing order for this room
-    callback({ reelOrder: global.roomReelOrders[room] });
-  } else {
-    // No order exists yet, admin will create it
-    callback({ reelOrder: null });
-  }
-});
+  socket.on('reel_play', ({ room, index, isPlaying }) => {
+    // ✅ Allow anyone to control play state, not just admin
+    if (roomStates[room]) {
+      roomStates[room].currentIndex = index;
+      roomStates[room].isPlaying = isPlaying;
+    } else {
+      roomStates[room] = { currentIndex: index, isPlaying };
+    }
+    console.log(
+      `▶️ ${socket.username} set play state: index=${index}, isPlaying=${isPlaying} in room ${room}`
+    );
+    // ✅ Broadcast to everyone in room including sender
+    io.to(room).emit('reel_play_state', { index, isPlaying });
+  });
+  // Add this new event handler in your socket configuration
+  socket.on('request_room_reel_order', ({ room }, callback) => {
+    console.log(`📋 Room ${room} requesting reel order`);
 
-socket.on('set_room_reel_order', ({ room, reelOrder }) => {
-  console.log(`🔄 Setting reel order for room ${room}`);
-  
-  if (!global.roomReelOrders) {
-    global.roomReelOrders = {};
-  }
-  
-  // Store the reel order for this room
-  global.roomReelOrders[room] = reelOrder;
-  
-  // Broadcast to all users in the room
-  io.to(room).emit('room_reel_order_set', { reelOrder });
-});
+    // Check if this room already has a reel order stored
+    if (!global.roomReelOrders) {
+      global.roomReelOrders = {};
+    }
+
+    if (global.roomReelOrders[room]) {
+      // Return existing order for this room
+      callback({ reelOrder: global.roomReelOrders[room] });
+    } else {
+      // No order exists yet, admin will create it
+      callback({ reelOrder: null });
+    }
+  });
+
+  socket.on('set_room_reel_order', ({ room, reelOrder }) => {
+    console.log(`🔄 Setting reel order for room ${room}`);
+
+    if (!global.roomReelOrders) {
+      global.roomReelOrders = {};
+    }
+
+    // Store the reel order for this room
+    global.roomReelOrders[room] = reelOrder;
+
+    // Broadcast to all users in the room
+    io.to(room).emit('room_reel_order_set', { reelOrder });
+  });
   // ================================
   // ✅ ADMIN LEFT ROOM
   // ================================
   socket.on('admin_left_room', ({ room }) => {
-     if (global.roomReelOrders) {
-    delete global.roomReelOrders[room];
-  }
+    if (global.roomReelOrders) {
+      delete global.roomReelOrders[room];
+    }
     const adminName = socket.username;
-     io.to(room).emit('admin_left', { adminName: socket.username });
+    io.to(room).emit('admin_left', { adminName: socket.username });
     socket.leave(room);
     delete admins[room];
     delete roomStates[room];
@@ -755,17 +755,31 @@ socket.on('set_room_reel_order', ({ room, reelOrder }) => {
     console.log(`👋 Admin ${adminName} left room ${room}`);
   });
 
-  socket.on('initiate_call', ({ room, callType, from, to }) => {
-  console.log(`📞 ${from} initiating ${callType} call to ${to}`);
+socket.on('initiate_call', ({ room, callType, from, to }) => {
+  console.log(`📞 ${from} initiating ${callType} call to ${to} in room ${room}`);
   
   const recipientUser = userssample[to];
+  console.log(`🔍 Looking for recipient: ${to}`, recipientUser ? 'FOUND' : 'NOT FOUND');
+  
   if (recipientUser?.socketId) {
-    io.to(recipientUser.socketId).emit('incoming_call', {
+    const callData = {
       room,
       callType,
       from,
+      to,
       callId: `call_${Date.now()}`
-    });
+    };
+    
+    console.log(`📤 Emitting incoming_call to socket ${recipientUser.socketId}:`, callData);
+    io.to(recipientUser.socketId).emit('incoming_call', callData);
+    
+    // Also emit to user room as backup
+    io.to(recipientUser.userId?.toString()).emit('incoming_call', callData);
+    
+    socket.emit('call_initiated', { success: true });
+  } else {
+    console.log(`❌ Recipient ${to} not found or offline`);
+    socket.emit('call_failed', { message: `${to} is currently offline` });
   }
 });
 
@@ -777,9 +791,11 @@ socket.on('accept_call', ({ room, callId, from, to }) => {
   const fromUser = userssample[from];
   if (fromUser?.socketId) {
     io.to(fromUser.socketId).emit('call_accepted', { room, callId });
+    // Also emit to user room
+    io.to(fromUser.userId?.toString()).emit('call_accepted', { room, callId });
   }
   
-  io.to(socket.id).emit('call_accepted', { room, callId });
+  socket.emit('call_accepted', { room, callId });
 });
 
 socket.on('reject_call', ({ callId, from, to }) => {
@@ -788,6 +804,8 @@ socket.on('reject_call', ({ callId, from, to }) => {
   const fromUser = userssample[from];
   if (fromUser?.socketId) {
     io.to(fromUser.socketId).emit('call_rejected', { callId });
+    // Also emit to user room
+    io.to(fromUser.userId?.toString()).emit('call_rejected', { callId });
   }
 });
 
@@ -798,17 +816,28 @@ socket.on('end_call', ({ room }) => {
   io.to(room).emit('call_ended', { room });
 });
 
+  socket.on('reject_call', ({ callId, from, to }) => {
+    console.log(`❌ ${to} rejected call from ${from}`);
+
+    const fromUser = userssample[from];
+    if (fromUser?.socketId) {
+      io.to(fromUser.socketId).emit('call_rejected', { callId });
+    }
+  });
+
+ 
+
   // ================================
   // ✅ DISCONNECT HANDLER
   // ================================
   socket.on('disconnect', () => {
     // Inside socket.on('disconnect', ...) - add this near the end:
-activeCallRooms.forEach((callData, callRoom) => {
-  if (callData.participants.includes(socket.username)) {
-    activeCallRooms.delete(callRoom);
-    io.to(callRoom).emit('call_ended', { room: callRoom });
-  }
-});
+    activeCallRooms.forEach((callData, callRoom) => {
+      if (callData.participants.includes(socket.username)) {
+        activeCallRooms.delete(callRoom);
+        io.to(callRoom).emit('call_ended', { room: callRoom });
+      }
+    });
 
     // Remove user from socket map
     for (const [userId, socketId] of userSockets.entries()) {
@@ -818,30 +847,30 @@ activeCallRooms.forEach((callData, callRoom) => {
         break;
       }
     }
-    
+
     console.log(
       `🔴 Client disconnected: ${socket.id} (${socket.username || 'Unknown'})`
     );
-    
+
     if (socket.username) {
       delete userssample[socket.username];
     }
-    
+
     for (const [uid, sid] of Object.entries(onlineUsers)) {
       if (sid === socket.id) {
         delete onlineUsers[uid];
       }
     }
-    
+
     for (const [uid, sid] of connectedUsers.entries()) {
       if (sid === socket.id) {
         connectedUsers.delete(uid);
       }
     }
-    
+
     const room = rooms[socket.username];
     const wasAdmin = admins[room] === socket.username;
-    
+
     if (room) {
       delete rooms[socket.username];
       if (wasAdmin) {
@@ -855,7 +884,7 @@ activeCallRooms.forEach((callData, callRoom) => {
         }
       }
     }
-    
+
     io.emit('active_users', Object.values(userssample));
   });
 });
@@ -1010,11 +1039,11 @@ process.on('SIGTERM', async () => {
   console.log('SIGTERM: closing HTTP server');
   server.close(async () => {
     console.log('HTTP server closed');
-    
+
     // Clear all timers
     inviteTimers.forEach(timer => clearTimeout(timer));
     inviteTimers.clear();
-    
+
     await mongoose.connection.close();
     console.log('MongoDB closed');
     process.exit(0);
@@ -1025,11 +1054,11 @@ process.on('SIGINT', async () => {
   console.log('SIGINT: closing HTTP server');
   server.close(async () => {
     console.log('HTTP server closed');
-    
+
     // Clear all timers
     inviteTimers.forEach(timer => clearTimeout(timer));
     inviteTimers.clear();
-    
+
     await mongoose.connection.close();
     console.log('MongoDB closed');
     process.exit(0);
