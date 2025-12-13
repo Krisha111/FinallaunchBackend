@@ -425,7 +425,8 @@ function createRoomName(user1, user2) {
     }
 
     // ✅ USE CONSISTENT ROOM NAMING
-    const room = createRoomName(from, to);
+   const room = `reel_${createRoomName(from, to)}`;
+
     console.log('📋 Created room:', room);
     socket.join(room);
 
@@ -749,70 +750,7 @@ const initiateCall = async (type) => {
     }
   });
 
-  // ================================
-  // ✅ ACCEPT INVITE (Regular)
-  // ================================
-  // socket.on('accept_invite', ({ from }) => {
-  //   console.log(`✅ ${socket.username} accepting invite from ${from}`);
 
-  //   const room = `${from}-${socket.username}`;
-  //   socket.join(room);
-
-  //   const userInvites = pendingInvites.get(socket.username) || [];
-  //   const inviteIndex = userInvites.findIndex((inv) => inv.from === from && inv.status === 'pending');
-
-  //   if (inviteIndex !== -1) {
-  //     const inviteId = userInvites[inviteIndex].id;
-
-  //     if (inviteTimers.has(inviteId)) {
-  //       clearTimeout(inviteTimers.get(inviteId));
-  //       inviteTimers.delete(inviteId);
-  //     }
-
-  //     userInvites.splice(inviteIndex, 1);
-  //   }
-
-  //   const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
-  //   socket.emit('pending_invites', remainingInvites);
-
-  //   const fromUser = userssample[from];
-  //   if (fromUser?.socketId) {
-  //     const fromSocket = io.sockets.sockets.get(fromUser.socketId);
-  //     if (fromSocket) {
-  //       fromSocket.join(room);
-
-  //       const currentIndex = 0;
-  //       roomStates[room] = { currentIndex, isPlaying: true };
-  //       admins[room] = from;
-  //       rooms[socket.username] = room;
-  //       rooms[from] = room;
-
-  //       console.log(`✅ Room created: ${room} | Admin: ${from}`);
-
-  //       io.to(fromUser.socketId).emit('invite_accepted', {
-  //         by: socket.username,
-  //         from: from,
-  //         room,
-  //         isAdmin: true,
-  //         currentReelIndex: currentIndex,
-  //       });
-
-  //       io.to(socket.id).emit('invite_accepted', {
-  //         by: socket.username,
-  //         from: from,
-  //         room,
-  //         isAdmin: false,
-  //         currentReelIndex: currentIndex,
-  //       });
-
-  //       console.log(`📤 Sent invite_accepted to both users`);
-  //     }
-  //   } else {
-  //     socket.emit('invite_accept_failed', {
-  //       message: `${from} is currently offline`,
-  //     });
-  //   }
-  // });
 
   // ================================
   // ✅ SEND MESSAGE
@@ -917,83 +855,7 @@ const initiateCall = async (type) => {
     console.log(`👋 Admin ${adminName} left room ${room}`);
   });
 
-  // socket.on('initiate_call', ({ room, callType, from, to }) => {
-  //   console.log(`📞 ${from} initiating ${callType} call to ${to} in room ${room}`);
 
-  //   const recipientUser = userssample[to]; // ✅ Use username lookup
-  //   console.log(`🔍 Looking for recipient: ${to}`, recipientUser ? 'FOUND' : 'NOT FOUND');
-
-  //   if (recipientUser?.socketId) {
-  //     const callData = {
-  //       room,
-  //       callType,
-  //       from,
-  //       to,
-  //       callId: `call_${Date.now()}`
-  //     };
-
-  //     console.log(`📤 Emitting incoming_call to socket ${recipientUser.socketId}:`, callData);
-
-  //     // ✅ Emit to the recipient's socket
-  //     io.to(recipientUser.socketId).emit('incoming_call', callData);
-
-  //     // ✅ Also emit to sender to confirm call initiated
-  //     socket.emit('call_initiated', { success: true, callData });
-  //   } else {
-  //     console.log(`❌ Recipient ${to} not found or offline`);
-  //     socket.emit('call_failed', { message: `${to} is currently offline` });
-  //   }
-  // });
-  // socket.on('accept_call', ({ room, callId, from, to }) => {
-  //   console.log(`✅ ${to} accepted call from ${from}`);
-
-  //   activeCallRooms.set(room, { callId, participants: [from, to] });
-
-  //   const fromUser = userssample[from]; // ✅ Use username lookup
-
-  //   if (fromUser?.socketId) {
-  //     // ✅ Emit to the caller's socket
-  //     io.to(fromUser.socketId).emit('call_accepted', { room, callId });
-  //     console.log(`📤 Sent call_accepted to ${from} at socket ${fromUser.socketId}`);
-  //   } else {
-  //     console.log(`⚠️ Caller ${from} not found`);
-  //   }
-
-  //   // ✅ Also emit to the accepter (current socket)
-  //   socket.emit('call_accepted', { room, callId });
-  // });
-
-  // socket.on('reject_call', ({ callId, from, to }) => {
-  //   console.log(`❌ ${to} rejected call from ${from}`);
-
-  //   const fromUser = userssample[from]; // ✅ Use username lookup
-
-  //   if (fromUser?.socketId) {
-  //     io.to(fromUser.socketId).emit('call_rejected', { callId });
-  //     console.log(`📤 Sent call_rejected to ${from}`);
-  //   }
-  // });
-
-  // socket.on('end_call', ({ room }) => {
-  //   console.log(`📴 Call ended in room ${room}`);
-
-  //   activeCallRooms.delete(room);
-  //   io.to(room).emit('call_ended', { room });
-  // });
-
-  //   socket.on('reject_call', ({ callId, from, to }) => {
-  //     console.log(`❌ ${to} rejected call from ${from}`);
-
-  //     const fromUser = userssample[from];
-  //     if (fromUser?.socketId) {
-  //       io.to(fromUser.socketId).emit('call_rejected', { callId });
-  //     }
-  //   });
-
-  // ================================
-  // Add these socket handlers to your server.js
-  // Replace your existing call-related handlers
-  // ================================
 
   // ✅ Helper function to create valid Agora channel name
   function sanitizeChannelName(room) {
@@ -1007,59 +869,49 @@ const initiateCall = async (type) => {
 // REPLACE your call handlers with these simplified versions
 // ================================
 
- socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
-    console.log('📞 ========== INITIATE CALL ==========');
-    console.log('From:', from);
-    console.log('To:', to);
-    console.log('Room:', room);
-    console.log('Agora Channel:', agoraChannel);
-    console.log('Channel length:', agoraChannel?.length);
-    console.log('Channel valid?', /^[a-zA-Z0-9_]+$/.test(agoraChannel));
-    
-    const recipientUser = userssample[to];
-    
-    if (recipientUser?.socketId) {
-      const callData = {
-        room,
-        agoraChannel,
-        callType,
-        from,
-        to,
-        callId: `call_${Date.now()}`
-      };
-      
-      console.log('📤 Sending incoming_call to:', to);
-      
-      io.to(recipientUser.socketId).emit('incoming_call', callData);
-      
-      activeCallRooms.set(room, { 
-        callId: callData.callId, 
-        agoraChannel, 
-        participants: [from, to] 
-      });
-      
-      console.log('✅ Call initiated successfully');
-    } else {
-      console.log(`❌ Recipient ${to} not found or offline`);
-      socket.emit('call_failed', { message: `${to} is currently offline` });
-    }
+ // ================================
+// ✅ INITIATE CALL (NO ROOM JOIN)
+// ================================
+socket.on('initiate_call', ({ reelRoom, from, to, callType }) => {
+  const callId = `call_${uuidv4()}`;
+  const agoraChannel = callId;
+
+  activeCallRooms.set(callId, {
+    callId,
+    agoraChannel,
+    participants: [from, to],
+    reelRoom,
   });
 
-socket.on('accept_call', ({ room, agoraChannel, callId, from, to }) => {
-  console.log(`✅ ${to} accepted call from ${from}`);
-  
-  const fromUser = userssample[from];
-  
-  if (fromUser?.socketId) {
-    // ✅ Just notify caller that call was accepted
-    // Don't send agoraChannel again - caller already joined
-    io.to(fromUser.socketId).emit('call_accepted', { 
-      room, 
-      callId 
+  const receiver = userssample[to];
+  if (receiver?.socketId) {
+    io.to(receiver.socketId).emit('incoming_call', {
+      callId,
+      agoraChannel,
+      callType,
+      from,
     });
-    console.log(`📤 Notified ${from} that call was accepted`);
   }
 });
+
+
+// ================================
+// ✅ ACCEPT CALL
+// ================================
+socket.on('accept_call', ({ callId }) => {
+  const call = activeCallRooms.get(callId);
+  if (!call) return;
+
+  call.disconnectedAt = null;
+
+  call.participants.forEach(username => {
+    const user = userssample[username];
+    if (user?.socketId) {
+      io.to(user.socketId).emit('call_accepted', { callId });
+    }
+  });
+});
+
 
 socket.on('reject_call', ({ callId, from, to }) => {
   console.log(`❌ ${to} rejected call from ${from}`);
@@ -1079,30 +931,30 @@ socket.on('reject_call', ({ callId, from, to }) => {
   }
 });
 
-socket.on('end_call', ({ room }) => {
-  console.log(`📴 Call ended in room ${room}`);
-  
-  const callData = activeCallRooms.get(room);
-  if (callData) {
-    activeCallRooms.delete(room);
-    
-    // ✅ Notify other participant
-    io.to(room).emit('call_ended', { room });
-  }
+// ================================
+// ✅ END CALL (ONLY HERE)
+// ================================
+socket.on('end_call', ({ callId }) => {
+  const call = activeCallRooms.get(callId);
+  if (!call) return;
+
+  io.to(call.reelRoom).emit('call_ended', { callId });
+  activeCallRooms.delete(callId);
 });
+
 
   // ✅ Update disconnect handler - add this inside your existing disconnect handler
   socket.on('disconnect', () => {
     // ... existing disconnect code ...
 
     // ✅ Handle call cleanup on disconnect
-    activeCallRooms.forEach((callData, callRoom) => {
-      if (callData.participants.includes(socket.username)) {
-        activeCallRooms.delete(callRoom);
-        io.to(callRoom).emit('call_ended', { room: callRoom });
-        console.log(`📴 Auto-ended call in room ${callRoom} due to disconnect`);
-      }
-    });
+  activeCallRooms.forEach(call => {
+  if (call.participants.includes(socket.username)) {
+    call.disconnectedAt = Date.now();
+    console.log(`⚠️ ${socket.username} disconnected from call ${call.callId}`);
+  }
+});
+
 
     // ... rest of existing disconnect code ...
   });
@@ -1172,22 +1024,24 @@ socket.on('end_call', ({ room }) => {
 // ================================
 // ✅ CLEANUP OLD INVITES (Periodic Task)
 // ================================
+// ================================
+// ✅ CLEAN UP DEAD CALLS
+// ================================
 setInterval(() => {
   const now = Date.now();
-  const oneDayMs = 24 * 60 * 60 * 1000;
 
-  pendingInvites.forEach((invites, username) => {
-    const filtered = invites.filter((inv) => now - inv.timestamp < oneDayMs);
-    if (filtered.length > 0) {
-      pendingInvites.set(username, filtered);
-    } else {
-      pendingInvites.delete(username);
+  activeCallRooms.forEach((call, callId) => {
+    if (
+      call.disconnectedAt &&
+      now - call.disconnectedAt > 20000 // 20 seconds
+    ) {
+      io.to(call.reelRoom).emit('call_ended', { callId });
+      activeCallRooms.delete(callId);
+      console.log(`📴 Call ${callId} cleaned up`);
     }
   });
-  console.log(
-    `🧹 Cleaned old invites. Current pending: ${pendingInvites.size} users`
-  );
-}, 60 * 60 * 1000); // Run every hour
+}, 5000);
+
 
 // ================================
 // ✅ Root Test Route
