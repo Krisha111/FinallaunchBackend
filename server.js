@@ -758,7 +758,7 @@ io.on('connection', (socket) => {
 socket.on('initiate_call', ({ room, callType, from, to }) => {
   console.log(`📞 ${from} initiating ${callType} call to ${to} in room ${room}`);
   
-  const recipientUser = userssample[to];
+  const recipientUser = userssample[to]; // ✅ Use username lookup
   console.log(`🔍 Looking for recipient: ${to}`, recipientUser ? 'FOUND' : 'NOT FOUND');
   
   if (recipientUser?.socketId) {
@@ -771,44 +771,46 @@ socket.on('initiate_call', ({ room, callType, from, to }) => {
     };
     
     console.log(`📤 Emitting incoming_call to socket ${recipientUser.socketId}:`, callData);
+    
+    // ✅ Emit to the recipient's socket
     io.to(recipientUser.socketId).emit('incoming_call', callData);
     
-    // Also emit to user room as backup
-    io.to(recipientUser.userId?.toString()).emit('incoming_call', callData);
-    
-    socket.emit('call_initiated', { success: true });
+    // ✅ Also emit to sender to confirm call initiated
+    socket.emit('call_initiated', { success: true, callData });
   } else {
     console.log(`❌ Recipient ${to} not found or offline`);
     socket.emit('call_failed', { message: `${to} is currently offline` });
   }
 });
-
 socket.on('accept_call', ({ room, callId, from, to }) => {
   console.log(`✅ ${to} accepted call from ${from}`);
   
   activeCallRooms.set(room, { callId, participants: [from, to] });
   
-  const fromUser = userssample[from];
+  const fromUser = userssample[from]; // ✅ Use username lookup
+  
   if (fromUser?.socketId) {
+    // ✅ Emit to the caller's socket
     io.to(fromUser.socketId).emit('call_accepted', { room, callId });
-    // Also emit to user room
-    io.to(fromUser.userId?.toString()).emit('call_accepted', { room, callId });
+    console.log(`📤 Sent call_accepted to ${from} at socket ${fromUser.socketId}`);
+  } else {
+    console.log(`⚠️ Caller ${from} not found`);
   }
   
+  // ✅ Also emit to the accepter (current socket)
   socket.emit('call_accepted', { room, callId });
 });
 
 socket.on('reject_call', ({ callId, from, to }) => {
   console.log(`❌ ${to} rejected call from ${from}`);
   
-  const fromUser = userssample[from];
+  const fromUser = userssample[from]; // ✅ Use username lookup
+  
   if (fromUser?.socketId) {
     io.to(fromUser.socketId).emit('call_rejected', { callId });
-    // Also emit to user room
-    io.to(fromUser.userId?.toString()).emit('call_rejected', { callId });
+    console.log(`📤 Sent call_rejected to ${from}`);
   }
 });
-
 socket.on('end_call', ({ room }) => {
   console.log(`📴 Call ended in room ${room}`);
   
