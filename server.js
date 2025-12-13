@@ -316,7 +316,8 @@ io.on('connection', (socket) => {
       return;
     }
 
-    console.log(`📍 User ${userId} joining room (socket: ${socket.id})`);
+    console.log(`📍 User ${userId} joining room 
+      (socket: ${socket.id})`);
 
     socket.join(userId);
     connectedUsers.set(userId, socket.id);
@@ -404,7 +405,7 @@ io.on('connection', (socket) => {
       io.to(receiver.socketId).emit('pending_invites', remainingInvites);
     }
 
-    const room = `${from}-${to}`;
+    const room = `${from}${to}`;
 
     socket.join(room);
 
@@ -755,112 +756,123 @@ io.on('connection', (socket) => {
     console.log(`👋 Admin ${adminName} left room ${room}`);
   });
 
-// socket.on('initiate_call', ({ room, callType, from, to }) => {
-//   console.log(`📞 ${from} initiating ${callType} call to ${to} in room ${room}`);
-  
-//   const recipientUser = userssample[to]; // ✅ Use username lookup
-//   console.log(`🔍 Looking for recipient: ${to}`, recipientUser ? 'FOUND' : 'NOT FOUND');
-  
-//   if (recipientUser?.socketId) {
-//     const callData = {
-//       room,
-//       callType,
-//       from,
-//       to,
-//       callId: `call_${Date.now()}`
-//     };
-    
-//     console.log(`📤 Emitting incoming_call to socket ${recipientUser.socketId}:`, callData);
-    
-//     // ✅ Emit to the recipient's socket
-//     io.to(recipientUser.socketId).emit('incoming_call', callData);
-    
-//     // ✅ Also emit to sender to confirm call initiated
-//     socket.emit('call_initiated', { success: true, callData });
-//   } else {
-//     console.log(`❌ Recipient ${to} not found or offline`);
-//     socket.emit('call_failed', { message: `${to} is currently offline` });
-//   }
-// });
-// socket.on('accept_call', ({ room, callId, from, to }) => {
-//   console.log(`✅ ${to} accepted call from ${from}`);
-  
-//   activeCallRooms.set(room, { callId, participants: [from, to] });
-  
-//   const fromUser = userssample[from]; // ✅ Use username lookup
-  
-//   if (fromUser?.socketId) {
-//     // ✅ Emit to the caller's socket
-//     io.to(fromUser.socketId).emit('call_accepted', { room, callId });
-//     console.log(`📤 Sent call_accepted to ${from} at socket ${fromUser.socketId}`);
-//   } else {
-//     console.log(`⚠️ Caller ${from} not found`);
-//   }
-  
-//   // ✅ Also emit to the accepter (current socket)
-//   socket.emit('call_accepted', { room, callId });
-// });
+  // socket.on('initiate_call', ({ room, callType, from, to }) => {
+  //   console.log(`📞 ${from} initiating ${callType} call to ${to} in room ${room}`);
 
-// socket.on('reject_call', ({ callId, from, to }) => {
-//   console.log(`❌ ${to} rejected call from ${from}`);
-  
-//   const fromUser = userssample[from]; // ✅ Use username lookup
-  
-//   if (fromUser?.socketId) {
-//     io.to(fromUser.socketId).emit('call_rejected', { callId });
-//     console.log(`📤 Sent call_rejected to ${from}`);
-//   }
-// });
+  //   const recipientUser = userssample[to]; // ✅ Use username lookup
+  //   console.log(`🔍 Looking for recipient: ${to}`, recipientUser ? 'FOUND' : 'NOT FOUND');
 
-// socket.on('end_call', ({ room }) => {
-//   console.log(`📴 Call ended in room ${room}`);
-  
-//   activeCallRooms.delete(room);
-//   io.to(room).emit('call_ended', { room });
-// });
+  //   if (recipientUser?.socketId) {
+  //     const callData = {
+  //       room,
+  //       callType,
+  //       from,
+  //       to,
+  //       callId: `call_${Date.now()}`
+  //     };
 
-//   socket.on('reject_call', ({ callId, from, to }) => {
-//     console.log(`❌ ${to} rejected call from ${from}`);
+  //     console.log(`📤 Emitting incoming_call to socket ${recipientUser.socketId}:`, callData);
 
-//     const fromUser = userssample[from];
-//     if (fromUser?.socketId) {
-//       io.to(fromUser.socketId).emit('call_rejected', { callId });
-//     }
-//   });
+  //     // ✅ Emit to the recipient's socket
+  //     io.to(recipientUser.socketId).emit('incoming_call', callData);
 
- // ================================
-// Add these socket handlers to your server.js
-// Replace your existing call-related handlers
+  //     // ✅ Also emit to sender to confirm call initiated
+  //     socket.emit('call_initiated', { success: true, callData });
+  //   } else {
+  //     console.log(`❌ Recipient ${to} not found or offline`);
+  //     socket.emit('call_failed', { message: `${to} is currently offline` });
+  //   }
+  // });
+  // socket.on('accept_call', ({ room, callId, from, to }) => {
+  //   console.log(`✅ ${to} accepted call from ${from}`);
+
+  //   activeCallRooms.set(room, { callId, participants: [from, to] });
+
+  //   const fromUser = userssample[from]; // ✅ Use username lookup
+
+  //   if (fromUser?.socketId) {
+  //     // ✅ Emit to the caller's socket
+  //     io.to(fromUser.socketId).emit('call_accepted', { room, callId });
+  //     console.log(`📤 Sent call_accepted to ${from} at socket ${fromUser.socketId}`);
+  //   } else {
+  //     console.log(`⚠️ Caller ${from} not found`);
+  //   }
+
+  //   // ✅ Also emit to the accepter (current socket)
+  //   socket.emit('call_accepted', { room, callId });
+  // });
+
+  // socket.on('reject_call', ({ callId, from, to }) => {
+  //   console.log(`❌ ${to} rejected call from ${from}`);
+
+  //   const fromUser = userssample[from]; // ✅ Use username lookup
+
+  //   if (fromUser?.socketId) {
+  //     io.to(fromUser.socketId).emit('call_rejected', { callId });
+  //     console.log(`📤 Sent call_rejected to ${from}`);
+  //   }
+  // });
+
+  // socket.on('end_call', ({ room }) => {
+  //   console.log(`📴 Call ended in room ${room}`);
+
+  //   activeCallRooms.delete(room);
+  //   io.to(room).emit('call_ended', { room });
+  // });
+
+  //   socket.on('reject_call', ({ callId, from, to }) => {
+  //     console.log(`❌ ${to} rejected call from ${from}`);
+
+  //     const fromUser = userssample[from];
+  //     if (fromUser?.socketId) {
+  //       io.to(fromUser.socketId).emit('call_rejected', { callId });
+  //     }
+  //   });
+
+  // ================================
+  // Add these socket handlers to your server.js
+  // Replace your existing call-related handlers
+  // ================================
+
+  // ✅ Helper function to create valid Agora channel name
+  function sanitizeChannelName(room) {
+    // Agora requires: a-z, A-Z, 0-9, !, #, $, %, &, (, ), +, -, :, ;, <, =, ., >, ?, @, [, ], ^, _, {, }, |, ~, ,
+    // Max length: 64 characters
+    const sanitized = room.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 64);
+    return sanitized;
+  }
+
+// ================================
+// REPLACE your call handlers with these simplified versions
 // ================================
 
-// ✅ Helper function to create valid Agora channel name
-function sanitizeChannelName(room) {
-  // Agora requires: a-z, A-Z, 0-9, !, #, $, %, &, (, ), +, -, :, ;, <, =, ., >, ?, @, [, ], ^, _, {, }, |, ~, ,
-  // Max length: 64 characters
-  const sanitized = room.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 64);
-  return sanitized;
-}
-
 socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
-  console.log(`📞 ${from} initiating ${callType} call to ${to} in room ${room}`);
+  console.log(`📞 ${from} initiating ${callType} call to ${to}`);
   
   const recipientUser = userssample[to];
-  console.log(`🔍 Looking for recipient: ${to}`, recipientUser ? 'FOUND' : 'NOT FOUND');
   
   if (recipientUser?.socketId) {
     const callData = {
       room,
-      agoraChannel,  // ✅ Pass the sanitized channel name
+      agoraChannel,
       callType,
       from,
       to,
       callId: `call_${Date.now()}`
     };
     
-    console.log(`📤 Emitting incoming_call to socket ${recipientUser.socketId}:`, callData);
+    console.log(`📤 Sending incoming_call to ${to}`);
     
+    // ✅ Only send incoming call notification to receiver
     io.to(recipientUser.socketId).emit('incoming_call', callData);
-    socket.emit('call_initiated', { success: true, callData });
+    
+    // ✅ Store active call
+    activeCallRooms.set(room, { 
+      callId: callData.callId, 
+      agoraChannel, 
+      participants: [from, to] 
+    });
+    
   } else {
     console.log(`❌ Recipient ${to} not found or offline`);
     socket.emit('call_failed', { message: `${to} is currently offline` });
@@ -868,24 +880,19 @@ socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
 });
 
 socket.on('accept_call', ({ room, agoraChannel, callId, from, to }) => {
-  console.log(`✅ ${to} accepted call from ${from}, channel: ${agoraChannel}`);
-  
-  activeCallRooms.set(room, { callId, agoraChannel, participants: [from, to] });
+  console.log(`✅ ${to} accepted call from ${from}`);
   
   const fromUser = userssample[from];
   
   if (fromUser?.socketId) {
+    // ✅ Just notify caller that call was accepted
+    // Don't send agoraChannel again - caller already joined
     io.to(fromUser.socketId).emit('call_accepted', { 
       room, 
-      agoraChannel,  // ✅ Send same channel to caller
       callId 
     });
-    console.log(`📤 Sent call_accepted to ${from} at socket ${fromUser.socketId}`);
-  } else {
-    console.log(`⚠️ Caller ${from} not found`);
+    console.log(`📤 Notified ${from} that call was accepted`);
   }
-  
-  socket.emit('call_accepted', { room, agoraChannel, callId });
 });
 
 socket.on('reject_call', ({ callId, from, to }) => {
@@ -895,7 +902,14 @@ socket.on('reject_call', ({ callId, from, to }) => {
   
   if (fromUser?.socketId) {
     io.to(fromUser.socketId).emit('call_rejected', { callId });
-    console.log(`📤 Sent call_rejected to ${from}`);
+  }
+  
+  // ✅ Clean up call room
+  const roomToDelete = Array.from(activeCallRooms.entries())
+    .find(([_, data]) => data.callId === callId);
+  
+  if (roomToDelete) {
+    activeCallRooms.delete(roomToDelete[0]);
   }
 });
 
@@ -905,25 +919,27 @@ socket.on('end_call', ({ room }) => {
   const callData = activeCallRooms.get(room);
   if (callData) {
     activeCallRooms.delete(room);
+    
+    // ✅ Notify other participant
     io.to(room).emit('call_ended', { room });
   }
 });
 
-// ✅ Update disconnect handler - add this inside your existing disconnect handler
-socket.on('disconnect', () => {
-  // ... existing disconnect code ...
+  // ✅ Update disconnect handler - add this inside your existing disconnect handler
+  socket.on('disconnect', () => {
+    // ... existing disconnect code ...
 
-  // ✅ Handle call cleanup on disconnect
-  activeCallRooms.forEach((callData, callRoom) => {
-    if (callData.participants.includes(socket.username)) {
-      activeCallRooms.delete(callRoom);
-      io.to(callRoom).emit('call_ended', { room: callRoom });
-      console.log(`📴 Auto-ended call in room ${callRoom} due to disconnect`);
-    }
+    // ✅ Handle call cleanup on disconnect
+    activeCallRooms.forEach((callData, callRoom) => {
+      if (callData.participants.includes(socket.username)) {
+        activeCallRooms.delete(callRoom);
+        io.to(callRoom).emit('call_ended', { room: callRoom });
+        console.log(`📴 Auto-ended call in room ${callRoom} due to disconnect`);
+      }
+    });
+
+    // ... rest of existing disconnect code ...
   });
-
-  // ... rest of existing disconnect code ...
-});
 
   // ================================
   // ✅ DISCONNECT HANDLER
