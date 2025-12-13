@@ -271,6 +271,14 @@ const userSockets = new Map();
 
 // NOTE: Voice/audio handlers removed. Only invites, rooms, messages, sync remain.
 
+// ✅ Helper function to create consistent room names (PLACE BEFORE io.on)
+function createRoomName(user1, user2) {
+  const sorted = [user1, user2].sort();
+  return `${sorted[0]}_${sorted[1]}`;
+}
+
+
+
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
 
@@ -392,138 +400,141 @@ function createRoomName(user1, user2) {
 // ================================
 // UPDATE: accept_invite_from_notification
 // ================================
-socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
-  console.log(`✅ ${to} accepting invite from ${from} via notification`);
+ socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
+    console.log(`✅ ${to} accepting invite from ${from} via notification`);
 
-  io.to(from).emit('invite_removed', { inviteId });
-  io.to(to).emit('invite_removed', { inviteId });
-  
-  if (inviteTimers.has(inviteId)) {
-    clearTimeout(inviteTimers.get(inviteId));
-    inviteTimers.delete(inviteId);
-  }
-
-  const userInvites = pendingInvites.get(to) || [];
-  const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
-
-  if (inviteIndex !== -1) {
-    userInvites.splice(inviteIndex, 1);
-  }
-
-  const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
-  const receiver = userssample[to];
-  if (receiver?.socketId) {
-    io.to(receiver.socketId).emit('pending_invites', remainingInvites);
-  }
-
-  // ✅ USE CONSISTENT ROOM NAMING
-  const room = createRoomName(from, to);
-  socket.join(room);
-
-  const fromUser = userssample[from];
-  if (fromUser?.socketId) {
-    const fromSocket = io.sockets.sockets.get(fromUser.socketId);
-    if (fromSocket) {
-      fromSocket.join(room);
-
-      const currentIndex = 0;
-      roomStates[room] = { currentIndex, isPlaying: true };
-      admins[room] = from;
-      rooms[to] = room;
-      rooms[from] = room;
-
-      console.log(`✅ Room created: ${room} | Admin: ${from} | Index: ${currentIndex}`);
-
-      io.to(fromUser.socketId).emit('invite_accepted', {
-        by: to,
-        from: from,
-        room,
-        isAdmin: true,
-        currentReelIndex: currentIndex,
-      });
-
-      io.to(socket.id).emit('invite_accepted', {
-        by: to,
-        from: from,
-        room,
-        isAdmin: false,
-        currentReelIndex: currentIndex,
-      });
-
-      console.log(`📤 Sent invite_accepted to both users`);
-    }
-  } else {
-    socket.emit('invite_accept_failed', {
-      message: `${from} is currently offline`,
-    });
-  }
-});
-
-// ================================
-// UPDATE: accept_invite (regular)
-// ================================
-socket.on('accept_invite', ({ from }) => {
-  console.log(`✅ ${socket.username} accepting invite from ${from}`);
-
-  // ✅ USE CONSISTENT ROOM NAMING
-  const room = createRoomName(from, socket.username);
-  socket.join(room);
-
-  const userInvites = pendingInvites.get(socket.username) || [];
-  const inviteIndex = userInvites.findIndex((inv) => inv.from === from && inv.status === 'pending');
-
-  if (inviteIndex !== -1) {
-    const inviteId = userInvites[inviteIndex].id;
-
+    io.to(from).emit('invite_removed', { inviteId });
+    io.to(to).emit('invite_removed', { inviteId });
+    
     if (inviteTimers.has(inviteId)) {
       clearTimeout(inviteTimers.get(inviteId));
       inviteTimers.delete(inviteId);
     }
 
-    userInvites.splice(inviteIndex, 1);
-  }
+    const userInvites = pendingInvites.get(to) || [];
+    const inviteIndex = userInvites.findIndex((inv) => inv.id === inviteId);
 
-  const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
-  socket.emit('pending_invites', remainingInvites);
-
-  const fromUser = userssample[from];
-  if (fromUser?.socketId) {
-    const fromSocket = io.sockets.sockets.get(fromUser.socketId);
-    if (fromSocket) {
-      fromSocket.join(room);
-
-      const currentIndex = 0;
-      roomStates[room] = { currentIndex, isPlaying: true };
-      admins[room] = from;
-      rooms[socket.username] = room;
-      rooms[from] = room;
-
-      console.log(`✅ Room created: ${room} | Admin: ${from}`);
-
-      io.to(fromUser.socketId).emit('invite_accepted', {
-        by: socket.username,
-        from: from,
-        room,
-        isAdmin: true,
-        currentReelIndex: currentIndex,
-      });
-
-      io.to(socket.id).emit('invite_accepted', {
-        by: socket.username,
-        from: from,
-        room,
-        isAdmin: false,
-        currentReelIndex: currentIndex,
-      });
-
-      console.log(`📤 Sent invite_accepted to both users`);
+    if (inviteIndex !== -1) {
+      userInvites.splice(inviteIndex, 1);
     }
-  } else {
-    socket.emit('invite_accept_failed', {
-      message: `${from} is currently offline`,
-    });
-  }
-});
+
+    const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
+    const receiver = userssample[to];
+    if (receiver?.socketId) {
+      io.to(receiver.socketId).emit('pending_invites', remainingInvites);
+    }
+
+    // ✅ USE CONSISTENT ROOM NAMING
+    const room = createRoomName(from, to);
+    console.log('📋 Created room:', room);
+    socket.join(room);
+
+    const fromUser = userssample[from];
+    if (fromUser?.socketId) {
+      const fromSocket = io.sockets.sockets.get(fromUser.socketId);
+      if (fromSocket) {
+        fromSocket.join(room);
+
+        const currentIndex = 0;
+        roomStates[room] = { currentIndex, isPlaying: true };
+        admins[room] = from;
+        rooms[to] = room;
+        rooms[from] = room;
+
+        console.log(`✅ Room created: ${room} | Admin: ${from}`);
+
+        io.to(fromUser.socketId).emit('invite_accepted', {
+          by: to,
+          from: from,
+          room,
+          isAdmin: true,
+          currentReelIndex: currentIndex,
+        });
+
+        io.to(socket.id).emit('invite_accepted', {
+          by: to,
+          from: from,
+          room,
+          isAdmin: false,
+          currentReelIndex: currentIndex,
+        });
+
+        console.log(`📤 Sent invite_accepted to both users`);
+      }
+    } else {
+      socket.emit('invite_accept_failed', {
+        message: `${from} is currently offline`,
+      });
+    }
+  });
+
+// ================================
+// UPDATE: accept_invite (regular)
+// ================================
+socket.on('accept_invite', ({ from }) => {
+    console.log(`✅ ${socket.username} accepting invite from ${from}`);
+
+    // ✅ USE CONSISTENT ROOM NAMING
+    const room = createRoomName(from, socket.username);
+    console.log('📋 Created room:', room);
+    socket.join(room);
+
+    const userInvites = pendingInvites.get(socket.username) || [];
+    const inviteIndex = userInvites.findIndex((inv) => inv.from === from && inv.status === 'pending');
+
+    if (inviteIndex !== -1) {
+      const inviteId = userInvites[inviteIndex].id;
+
+      if (inviteTimers.has(inviteId)) {
+        clearTimeout(inviteTimers.get(inviteId));
+        inviteTimers.delete(inviteId);
+      }
+
+      userInvites.splice(inviteIndex, 1);
+    }
+
+    const remainingInvites = userInvites.filter((inv) => inv.status === 'pending');
+    socket.emit('pending_invites', remainingInvites);
+
+    const fromUser = userssample[from];
+    if (fromUser?.socketId) {
+      const fromSocket = io.sockets.sockets.get(fromUser.socketId);
+      if (fromSocket) {
+        fromSocket.join(room);
+
+        const currentIndex = 0;
+        roomStates[room] = { currentIndex, isPlaying: true };
+        admins[room] = from;
+        rooms[socket.username] = room;
+        rooms[from] = room;
+
+        console.log(`✅ Room created: ${room} | Admin: ${from}`);
+
+        io.to(fromUser.socketId).emit('invite_accepted', {
+          by: socket.username,
+          from: from,
+          room,
+          isAdmin: true,
+          currentReelIndex: currentIndex,
+        });
+
+        io.to(socket.id).emit('invite_accepted', {
+          by: socket.username,
+          from: from,
+          room,
+          isAdmin: false,
+          currentReelIndex: currentIndex,
+        });
+
+        console.log(`📤 Sent invite_accepted to both users`);
+      }
+    } else {
+      socket.emit('invite_accept_failed', {
+        message: `${from} is currently offline`,
+      });
+    }
+  });
+
 
 // ================================
 // FRONTEND FIX - Update initiateCall
@@ -996,38 +1007,43 @@ const initiateCall = async (type) => {
 // REPLACE your call handlers with these simplified versions
 // ================================
 
-socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
-  console.log(`📞 ${from} initiating ${callType} call to ${to}`);
-  
-  const recipientUser = userssample[to];
-  
-  if (recipientUser?.socketId) {
-    const callData = {
-      room,
-      agoraChannel,
-      callType,
-      from,
-      to,
-      callId: `call_${Date.now()}`
-    };
+ socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
+    console.log('📞 ========== INITIATE CALL ==========');
+    console.log('From:', from);
+    console.log('To:', to);
+    console.log('Room:', room);
+    console.log('Agora Channel:', agoraChannel);
+    console.log('Channel length:', agoraChannel?.length);
+    console.log('Channel valid?', /^[a-zA-Z0-9_]+$/.test(agoraChannel));
     
-    console.log(`📤 Sending incoming_call to ${to}`);
+    const recipientUser = userssample[to];
     
-    // ✅ Only send incoming call notification to receiver
-    io.to(recipientUser.socketId).emit('incoming_call', callData);
-    
-    // ✅ Store active call
-    activeCallRooms.set(room, { 
-      callId: callData.callId, 
-      agoraChannel, 
-      participants: [from, to] 
-    });
-    
-  } else {
-    console.log(`❌ Recipient ${to} not found or offline`);
-    socket.emit('call_failed', { message: `${to} is currently offline` });
-  }
-});
+    if (recipientUser?.socketId) {
+      const callData = {
+        room,
+        agoraChannel,
+        callType,
+        from,
+        to,
+        callId: `call_${Date.now()}`
+      };
+      
+      console.log('📤 Sending incoming_call to:', to);
+      
+      io.to(recipientUser.socketId).emit('incoming_call', callData);
+      
+      activeCallRooms.set(room, { 
+        callId: callData.callId, 
+        agoraChannel, 
+        participants: [from, to] 
+      });
+      
+      console.log('✅ Call initiated successfully');
+    } else {
+      console.log(`❌ Recipient ${to} not found or offline`);
+      socket.emit('call_failed', { message: `${to} is currently offline` });
+    }
+  });
 
 socket.on('accept_call', ({ room, agoraChannel, callId, from, to }) => {
   console.log(`✅ ${to} accepted call from ${from}`);
