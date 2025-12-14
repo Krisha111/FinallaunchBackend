@@ -386,26 +386,26 @@ io.on('connection', (socket) => {
   // ================================
   // ✅ ACCEPT INVITE FROM NOTIFICATION
   // ================================
-// ================================
-// BACKEND FIX - Replace your room creation logic
-// ================================
+  // ================================
+  // BACKEND FIX - Replace your room creation logic
+  // ================================
 
-// ✅ ADD THIS HELPER FUNCTION at the top of your socket handlers
-function createRoomName(user1, user2) {
-  // Always put users in alphabetical order for consistency
-  const sorted = [user1, user2].sort();
-  return `${sorted[0]}_${sorted[1]}`;
-}
+  // ✅ ADD THIS HELPER FUNCTION at the top of your socket handlers
+  function createRoomName(user1, user2) {
+    // Always put users in alphabetical order for consistency
+    const sorted = [user1, user2].sort();
+    return `${sorted[0]}_${sorted[1]}`;
+  }
 
-// ================================
-// UPDATE: accept_invite_from_notification
-// ================================
- socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
+  // ================================
+  // UPDATE: accept_invite_from_notification
+  // ================================
+  socket.on('accept_invite_from_notification', ({ inviteId, from, to }) => {
     console.log(`✅ ${to} accepting invite from ${from} via notification`);
 
     io.to(from).emit('invite_removed', { inviteId });
     io.to(to).emit('invite_removed', { inviteId });
-    
+
     if (inviteTimers.has(inviteId)) {
       clearTimeout(inviteTimers.get(inviteId));
       inviteTimers.delete(inviteId);
@@ -425,7 +425,7 @@ function createRoomName(user1, user2) {
     }
 
     // ✅ USE CONSISTENT ROOM NAMING
-   const room = `reel_${createRoomName(from, to)}`;
+    const room = `reel_${createRoomName(from, to)}`;
 
     console.log('📋 Created room:', room);
     socket.join(room);
@@ -469,10 +469,10 @@ function createRoomName(user1, user2) {
     }
   });
 
-// ================================
-// UPDATE: accept_invite (regular)
-// ================================
-socket.on('accept_invite', ({ from }) => {
+  // ================================
+  // UPDATE: accept_invite (regular)
+  // ================================
+  socket.on('accept_invite', ({ from }) => {
     console.log(`✅ ${socket.username} accepting invite from ${from}`);
 
     // ✅ USE CONSISTENT ROOM NAMING
@@ -537,78 +537,78 @@ socket.on('accept_invite', ({ from }) => {
   });
 
 
-// ================================
-// FRONTEND FIX - Update initiateCall
-// ================================
+  // ================================
+  // FRONTEND FIX - Update initiateCall
+  // ================================
 
-const initiateCall = async (type) => {
-  console.log('🔥 INITIATING CALL:', {
-    type,
-    room,
-    from: username,
-    to: chatWith
-  });
-
-  const hasPermissions = await requestPermissions();
-  if (!hasPermissions) {
-    Alert.alert('Permission Denied', 'Camera and microphone access required');
-    return;
-  }
-
-  setCallType(type);
-
-  // ✅ Create simple alphanumeric channel name (NO special characters)
-  const cleanRoom = room.replace(/[^a-zA-Z0-9]/g, '');
-  const agoraChannel = cleanRoom.substring(0, 64); // Max 64 chars
-  
-  console.log('🔍 Original room:', room);
-  console.log('🔍 Clean Agora channel:', agoraChannel);
-
-  const engine = await initAgoraEngine();
-  if (!engine) {
-    Alert.alert('Error', 'Failed to initialize call');
-    return;
-  }
-
-  try {
-    if (type === 'audio') {
-      await engine.disableVideo();
-    } else {
-      await engine.enableVideo();
-      await engine.startPreview();
-    }
-    
-    const options = {
-      clientRoleType: ClientRoleType.ClientRoleBroadcaster,
-    };
-    
-    console.log('🔄 Caller joining Agora channel:', agoraChannel);
-    await engine.joinChannel(null, agoraChannel, 0, options);
-    
-    console.log('✅ Caller joined Agora channel successfully');
-    setInCall(true);
-
-    socket.emit('initiate_call', {
+  const initiateCall = async (type) => {
+    console.log('🔥 INITIATING CALL:', {
+      type,
       room,
-      agoraChannel,
-      callType: type,
       from: username,
-      to: chatWith,
+      to: chatWith
     });
 
-    Alert.alert('Calling...', `Waiting for ${chatWith} to accept`);
-  } catch (err) {
-    console.error('❌ Caller failed to join:', err);
-    console.error('❌ Error details:', {
-      code: err.code,
-      message: err.message,
-      channel: agoraChannel
-    });
-    Alert.alert('Error', `Failed to start call: ${err.message}`);
-    setCallType(null);
-    setInCall(false);
-  }
-};
+    const hasPermissions = await requestPermissions();
+    if (!hasPermissions) {
+      Alert.alert('Permission Denied', 'Camera and microphone access required');
+      return;
+    }
+
+    setCallType(type);
+
+    // ✅ Create simple alphanumeric channel name (NO special characters)
+    const cleanRoom = room.replace(/[^a-zA-Z0-9]/g, '');
+    const agoraChannel = cleanRoom.substring(0, 64); // Max 64 chars
+
+    console.log('🔍 Original room:', room);
+    console.log('🔍 Clean Agora channel:', agoraChannel);
+
+    const engine = await initAgoraEngine();
+    if (!engine) {
+      Alert.alert('Error', 'Failed to initialize call');
+      return;
+    }
+
+    try {
+      if (type === 'audio') {
+        await engine.disableVideo();
+      } else {
+        await engine.enableVideo();
+        await engine.startPreview();
+      }
+
+      const options = {
+        clientRoleType: ClientRoleType.ClientRoleBroadcaster,
+      };
+
+      console.log('🔄 Caller joining Agora channel:', agoraChannel);
+      await engine.joinChannel(null, agoraChannel, 0, options);
+
+      console.log('✅ Caller joined Agora channel successfully');
+      setInCall(true);
+
+      socket.emit('initiate_call', {
+        room,
+        agoraChannel,
+        callType: type,
+        from: username,
+        to: chatWith,
+      });
+
+      Alert.alert('Calling...', `Waiting for ${chatWith} to accept`);
+    } catch (err) {
+      console.error('❌ Caller failed to join:', err);
+      console.error('❌ Error details:', {
+        code: err.code,
+        message: err.message,
+        channel: agoraChannel
+      });
+      Alert.alert('Error', `Failed to start call: ${err.message}`);
+      setCallType(null);
+      setInCall(false);
+    }
+  };
 
   // ================================
   // ✅ SEND NOTIFICATION
@@ -865,82 +865,84 @@ const initiateCall = async (type) => {
     return sanitized;
   }
 
-// ================================
-// REPLACE your call handlers with these simplified versions
-// ================================
+  // ================================
+  // REPLACE your call handlers with these simplified versions
+  // ================================
 
- // ================================
-// ✅ INITIATE CALL (NO ROOM JOIN)
-// ================================
-socket.on('initiate_call', ({ reelRoom, from, to, callType }) => {
-  const callId = `call_${uuidv4()}`;
-  const agoraChannel = callId;
-
-  activeCallRooms.set(callId, {
-    callId,
-    agoraChannel,
-    participants: [from, to],
-    reelRoom,
-  });
-
-  const receiver = userssample[to];
-  if (receiver?.socketId) {
-    io.to(receiver.socketId).emit('incoming_call', {
-      callId,
-      agoraChannel,
+  // ================================
+  // ✅ INITIATE CALL (NO ROOM JOIN)
+  // ================================
+ socket.on('initiate_call', ({ room, callType, from, to }) => {
+  console.log(`📞 ${from} initiating ${callType} call to ${to} in room ${room}`);
+  
+  const recipientUser = userssample[to];
+  console.log(`🔍 Looking for recipient: ${to}`, recipientUser ? 'FOUND' : 'NOT FOUND');
+  
+  if (recipientUser?.socketId) {
+    const callData = {
+      room,        // ✅ Include room in call data
       callType,
       from,
-    });
+      to,
+      callId: `call_${Date.now()}`
+    };
+    
+    console.log(`📤 Emitting incoming_call to socket ${recipientUser.socketId}:`, callData);
+    
+    io.to(recipientUser.socketId).emit('incoming_call', callData);
+    socket.emit('call_initiated', { success: true, callData });
+  } else {
+    console.log(`❌ Recipient ${to} not found or offline`);
+    socket.emit('call_failed', { message: `${to} is currently offline` });
   }
 });
 
+  // ================================
+  // ✅ ACCEPT CALL
+  // ================================
+  socket.on('accept_call', ({ callId }) => {
+    const call = activeCallRooms.get(callId);
+    if (!call) return;
 
-// ================================
-// ✅ ACCEPT CALL
-// ================================
-socket.on('accept_call', ({ callId }) => {
-  const call = activeCallRooms.get(callId);
-  if (!call) return;
+    call.disconnectedAt = null;
 
-  call.disconnectedAt = null;
+    call.participants.forEach(username => {
+      const user = userssample[username];
+      if (user?.socketId) {
+        io.to(user.socketId).emit('call_accepted', { callId });
+      }
+    });
+  });
 
-  call.participants.forEach(username => {
-    const user = userssample[username];
-    if (user?.socketId) {
-      io.to(user.socketId).emit('call_accepted', { callId });
+
+  socket.on('reject_call', ({ callId, from, to }) => {
+    console.log(`❌ ${to} rejected call from ${from}`);
+
+    const fromUser = userssample[from];
+
+    if (fromUser?.socketId) {
+      io.to(fromUser.socketId).emit('call_rejected', { callId });
+    }
+
+    // ✅ Clean up call room
+    const roomToDelete = Array.from(activeCallRooms.entries())
+      .find(([_, data]) => data.callId === callId);
+
+    if (roomToDelete) {
+      activeCallRooms.delete(roomToDelete[0]);
     }
   });
-});
 
+  // ================================
+  // ✅ END CALL (ONLY HERE)
+  // ================================
+  socket.on('end_call', ({ callId }) => {
+    const call = activeCallRooms.get(callId);
+    if (!call) return;
 
-socket.on('reject_call', ({ callId, from, to }) => {
-  console.log(`❌ ${to} rejected call from ${from}`);
-  
-  const fromUser = userssample[from];
-  
-  if (fromUser?.socketId) {
-    io.to(fromUser.socketId).emit('call_rejected', { callId });
-  }
-  
-  // ✅ Clean up call room
-  const roomToDelete = Array.from(activeCallRooms.entries())
-    .find(([_, data]) => data.callId === callId);
-  
-  if (roomToDelete) {
-    activeCallRooms.delete(roomToDelete[0]);
-  }
-});
-
-// ================================
-// ✅ END CALL (ONLY HERE)
-// ================================
-socket.on('end_call', ({ callId }) => {
-  const call = activeCallRooms.get(callId);
-  if (!call) return;
-
-  io.to(call.reelRoom).emit('call_ended', { callId });
-  activeCallRooms.delete(callId);
-});
+    io.to(call.reelRoom).emit('call_ended', { callId });
+    activeCallRooms.delete(callId);
+  });
 
 
   // ✅ Update disconnect handler - add this inside your existing disconnect handler
@@ -948,12 +950,12 @@ socket.on('end_call', ({ callId }) => {
     // ... existing disconnect code ...
 
     // ✅ Handle call cleanup on disconnect
-  activeCallRooms.forEach(call => {
-  if (call.participants.includes(socket.username)) {
-    call.disconnectedAt = Date.now();
-    console.log(`⚠️ ${socket.username} disconnected from call ${call.callId}`);
-  }
-});
+    activeCallRooms.forEach(call => {
+      if (call.participants.includes(socket.username)) {
+        call.disconnectedAt = Date.now();
+        console.log(`⚠️ ${socket.username} disconnected from call ${call.callId}`);
+      }
+    });
 
 
     // ... rest of existing disconnect code ...
