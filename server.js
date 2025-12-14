@@ -872,8 +872,7 @@ io.on('connection', (socket) => {
   // ================================
   // ✅ INITIATE CALL (NO ROOM JOIN)
   // ================================
- // ✅ In your server.js - This part is already correct
-socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
+ socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
   console.log(`📞 ${from} initiating ${callType} call to ${to}`);
   console.log(`📡 Agora channel: ${agoraChannel}`); // ✅ Debug log
   
@@ -901,26 +900,27 @@ socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
   }
 });
 
+
   // ================================
   // ✅ ACCEPT CALL
   // ================================
-  socket.on('accept_call', ({ callId }) => {
-    const call = activeCallRooms.get(callId);
-    if (!call) return;
-
-    call.disconnectedAt = null;
-
-    call.participants.forEach(username => {
-      const user = userssample[username];
-      if (user?.socketId) {
-        io.to(user.socketId).emit('call_accepted', { callId });
-      }
+ socket.on('accept_call', ({ room, agoraChannel, callId, from, to }) => {
+  console.log(`✅ ${to} accepted call from ${from}`);
+  console.log(`📡 Using Agora channel: ${agoraChannel}`);
+  
+  const fromUser = userssample[from];
+  
+  if (fromUser?.socketId) {
+    io.to(fromUser.socketId).emit('call_accepted', {
+      room,
+      agoraChannel,
+      callId
     });
-  });
+  }
+});
 
 
- // ✅ REJECT CALL
-socket.on('reject_call', ({ callId, from, to }) => {
+  socket.on('reject_call', ({ callId, from, to }) => {
   console.log(`❌ ${to} rejected call from ${from}`);
   
   const fromUser = userssample[from];
@@ -929,11 +929,8 @@ socket.on('reject_call', ({ callId, from, to }) => {
     io.to(fromUser.socketId).emit('call_rejected', { callId });
   }
 });
-  // ================================
-  // ✅ END CALL (ONLY HERE)
-  // ================================
-  socket.on('end_call', ({ callId }) => {
- socket.on('end_call', ({ room }) => {
+
+  socket.on('end_call', ({ room }) => {
   console.log(`📴 Call ended in room: ${room}`);
   io.to(room).emit('call_ended', { room });
 });
