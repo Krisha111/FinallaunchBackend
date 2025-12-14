@@ -875,18 +875,29 @@ io.on('connection', (socket) => {
  // ✅ In your server.js - This part is already correct
 socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
   console.log(`📞 ${from} initiating ${callType} call to ${to}`);
+  console.log(`📡 Agora channel: ${agoraChannel}`); // ✅ Debug log
+  
+  if (!agoraChannel) {
+    console.error('❌ No agoraChannel provided in initiate_call');
+    return;
+  }
   
   const recipientUser = userssample[to];
   
   if (recipientUser?.socketId) {
+    // ✅ CRITICAL: Forward the EXACT agoraChannel to receiver
     io.to(recipientUser.socketId).emit('incoming_call', {
       room,
-      agoraChannel, // ✅ Forward the sanitized channel name
+      agoraChannel, // ✅ Must be included
       callType,
       from,
       to,
       callId: `call_${Date.now()}`
     });
+    
+    console.log(`✅ Sent incoming_call to ${to} with channel: ${agoraChannel}`);
+  } else {
+    console.log(`⚠️ User ${to} not found or offline`);
   }
 });
 
@@ -908,34 +919,24 @@ socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
   });
 
 
-  socket.on('reject_call', ({ callId, from, to }) => {
-    console.log(`❌ ${to} rejected call from ${from}`);
-
-    const fromUser = userssample[from];
-
-    if (fromUser?.socketId) {
-      io.to(fromUser.socketId).emit('call_rejected', { callId });
-    }
-
-    // ✅ Clean up call room
-    const roomToDelete = Array.from(activeCallRooms.entries())
-      .find(([_, data]) => data.callId === callId);
-
-    if (roomToDelete) {
-      activeCallRooms.delete(roomToDelete[0]);
-    }
-  });
-
+ // ✅ REJECT CALL
+socket.on('reject_call', ({ callId, from, to }) => {
+  console.log(`❌ ${to} rejected call from ${from}`);
+  
+  const fromUser = userssample[from];
+  
+  if (fromUser?.socketId) {
+    io.to(fromUser.socketId).emit('call_rejected', { callId });
+  }
+});
   // ================================
   // ✅ END CALL (ONLY HERE)
   // ================================
   socket.on('end_call', ({ callId }) => {
-    const call = activeCallRooms.get(callId);
-    if (!call) return;
-
-    io.to(call.reelRoom).emit('call_ended', { callId });
-    activeCallRooms.delete(callId);
-  });
+ socket.on('end_call', ({ room }) => {
+  console.log(`📴 Call ended in room: ${room}`);
+  io.to(room).emit('call_ended', { room });
+});
 
 
   // ✅ Update disconnect handler - add this inside your existing disconnect handler
