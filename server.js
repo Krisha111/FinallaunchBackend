@@ -872,28 +872,21 @@ io.on('connection', (socket) => {
   // ================================
   // ✅ INITIATE CALL (NO ROOM JOIN)
   // ================================
- socket.on('initiate_call', ({ room, callType, from, to }) => {
-  console.log(`📞 ${from} initiating ${callType} call to ${to} in room ${room}`);
+ // ✅ In your server.js - This part is already correct
+socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
+  console.log(`📞 ${from} initiating ${callType} call to ${to}`);
   
   const recipientUser = userssample[to];
-  console.log(`🔍 Looking for recipient: ${to}`, recipientUser ? 'FOUND' : 'NOT FOUND');
   
   if (recipientUser?.socketId) {
-    const callData = {
-      room,        // ✅ Include room in call data
+    io.to(recipientUser.socketId).emit('incoming_call', {
+      room,
+      agoraChannel, // ✅ Forward the sanitized channel name
       callType,
       from,
       to,
       callId: `call_${Date.now()}`
-    };
-    
-    console.log(`📤 Emitting incoming_call to socket ${recipientUser.socketId}:`, callData);
-    
-    io.to(recipientUser.socketId).emit('incoming_call', callData);
-    socket.emit('call_initiated', { success: true, callData });
-  } else {
-    console.log(`❌ Recipient ${to} not found or offline`);
-    socket.emit('call_failed', { message: `${to} is currently offline` });
+    });
   }
 });
 
