@@ -856,13 +856,12 @@ io.on('connection', (socket) => {
   });
 
 
-
-  // ✅ Helper function to create valid Agora channel name
+  // ✅ MUST match frontend exactly
   function sanitizeChannelName(room) {
-    // Agora requires: a-z, A-Z, 0-9, !, #, $, %, &, (, ), +, -, :, ;, <, =, ., >, ?, @, [, ], ^, _, {, }, |, ~, ,
-    // Max length: 64 characters
-    const sanitized = room.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 64);
-    return sanitized;
+    if (!room) return 'default';
+    let clean = room.replace(/^reel_/, '');
+    clean = clean.replace(/[^a-zA-Z0-9_-]/g, '');
+    return (clean.substring(0, 64) || 'fallback').toLowerCase();
   }
 
   // ================================
@@ -874,29 +873,34 @@ io.on('connection', (socket) => {
   // ================================
  socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
   console.log(`📞 ${from} initiating ${callType} call to ${to}`);
-  console.log(`📡 Agora channel: ${agoraChannel}`); // ✅ Debug log
+  console.log(`📡 Room: ${room}, Agora channel: ${agoraChannel}`);
   
   if (!agoraChannel) {
-    console.error('❌ No agoraChannel provided in initiate_call');
+    console.error('❌ No agoraChannel provided');
     return;
   }
   
   const recipientUser = userssample[to];
   
   if (recipientUser?.socketId) {
-    // ✅ CRITICAL: Forward the EXACT agoraChannel to receiver
     io.to(recipientUser.socketId).emit('incoming_call', {
       room,
-      agoraChannel, // ✅ Must be included
+      agoraChannel, // ✅ Pass exact channel name
       callType,
       from,
       to,
       callId: `call_${Date.now()}`
     });
     
-    console.log(`✅ Sent incoming_call to ${to} with channel: ${agoraChannel}`);
+    console.log(`✅ Call notification sent to ${to}`);
   } else {
-    console.log(`⚠️ User ${to} not found or offline`);
+    // ✅ Notify caller that recipient is offline
+    const senderUser = userssample[from];
+    if (senderUser?.socketId) {
+      io.to(senderUser.socketId).emit('call_failed', {
+        reason: `${to} is currently offline`
+      });
+    }
   }
 });
 
@@ -904,36 +908,41 @@ io.on('connection', (socket) => {
   // ================================
   // ✅ ACCEPT CALL
   // ================================
- socket.on('accept_call', ({ room, agoraChannel, callId, from, to }) => {
+  // socket.on('accept_call', ({ room, agoraChannel, callId, from, to }) => {
+  //   console.log(`✅ ${to} accepted call from ${from}`);
+  //   console.log(`📡 Using Agora channel: ${agoraChannel}`);
+
+  //   const fromUser = userssample[from];
+
+  //   if (fromUser?.socketId) {
+  //     io.to(fromUser.socketId).emit('call_accepted', {
+  //       room,
+  //       agoraChannel,
+  //       callId
+  //     });
+  //   }
+  // });
+
+  socket.on('accept_call', ({ room, agoraChannel, callId, from, to }) => {
   console.log(`✅ ${to} accepted call from ${from}`);
-  console.log(`📡 Using Agora channel: ${agoraChannel}`);
-  
-  const fromUser = userssample[from];
-  
-  if (fromUser?.socketId) {
-    io.to(fromUser.socketId).emit('call_accepted', {
-      room,
-      agoraChannel,
-      callId
-    });
-  }
+  // Caller is already in channel - no need to emit anything back
 });
 
 
   socket.on('reject_call', ({ callId, from, to }) => {
-  console.log(`❌ ${to} rejected call from ${from}`);
-  
-  const fromUser = userssample[from];
-  
-  if (fromUser?.socketId) {
-    io.to(fromUser.socketId).emit('call_rejected', { callId });
-  }
-});
+    console.log(`❌ ${to} rejected call from ${from}`);
+
+    const fromUser = userssample[from];
+
+    if (fromUser?.socketId) {
+      io.to(fromUser.socketId).emit('call_rejected', { callId });
+    }
+  });
 
   socket.on('end_call', ({ room }) => {
-  console.log(`📴 Call ended in room: ${room}`);
-  io.to(room).emit('call_ended', { room });
-});
+    console.log(`📴 Call ended in room: ${room}`);
+    io.to(room).emit('call_ended', { room });
+  });
 
 
   // ✅ Update disconnect handler - add this inside your existing disconnect handler
