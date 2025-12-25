@@ -28,11 +28,10 @@ export const deleteAccount = async (req, res) => {
       // Delete user's thoughts
       mongoose.model('Thought').deleteMany({ userId: userId }),
       
-      // Delete user's highlights
-      mongoose.model('HighLight').deleteMany({ userId: userId }),
+      
       
       // Delete user's comments
-      mongoose.model('Comment').deleteMany({ userId: userId }),
+      mongoose.model('Moment').deleteMany({ userId: userId }),
       
       // Remove user from other users' followers/following
       User.updateMany(
