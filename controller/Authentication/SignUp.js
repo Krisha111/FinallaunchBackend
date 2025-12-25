@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../../model/User.js';
 import dotenv from 'dotenv';
-
+import mongoose from 'mongoose';
 dotenv.config(); // ✅ Load env variables (like JWT_SECRET)
 
 
