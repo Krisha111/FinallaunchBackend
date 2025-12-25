@@ -5,6 +5,73 @@ import dotenv from 'dotenv';
 
 dotenv.config(); // ✅ Load env variables (like JWT_SECRET)
 
+
+
+export const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id; // Assuming you have auth middleware that adds user to req
+
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Delete all user's content
+    await Promise.all([
+      // Delete user's reels
+      mongoose.model('Reel').deleteMany({ userId: userId }),
+      
+      // Delete user's posts
+      mongoose.model('Post').deleteMany({ userId: userId }),
+      
+      // Delete user's thoughts
+      mongoose.model('Thought').deleteMany({ userId: userId }),
+      
+      // Delete user's highlights
+      mongoose.model('HighLight').deleteMany({ userId: userId }),
+      
+      // Delete user's comments
+      mongoose.model('Comment').deleteMany({ userId: userId }),
+      
+      // Remove user from other users' followers/following
+      User.updateMany(
+        { $or: [{ followers: userId }, { following: userId }] },
+        { $pull: { followers: userId, following: userId } }
+      ),
+      
+      // Remove user from bonds and chosen lists
+      User.updateMany(
+        { $or: [{ bonds: userId }, { chosen: userId }] },
+        { $pull: { bonds: userId, chosen: userId } }
+      ),
+      
+      // Remove user from follow requests
+      User.updateMany(
+        { followRequests: userId },
+        { $pull: { followRequests: userId } }
+      ),
+    ]);
+
+    // Finally, delete the user account
+    await User.findByIdAndDelete(userId);
+
+    res.status(200).json({ 
+      success: true, 
+      message: "Account deleted successfully" 
+    });
+  } catch (error) {
+    console.error("Delete account error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Failed to delete account", 
+      error: error.message 
+    });
+  }
+};
+
+
+
 export const signUpRouteUser = async (req, res) => {
   const { username, email, password } = req.body;
 
