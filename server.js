@@ -871,9 +871,9 @@ io.on('connection', (socket) => {
   // ================================
   // ✅ INITIATE CALL (NO ROOM JOIN)
   // ================================
- socket.on('initiate_call', ({ room, agoraChannel, callType, from, to }) => {
+ socket.on('initiate_call', ({ room, agoraChannel, callType, from, to, callId }) => {
   console.log(`📞 ${from} initiating ${callType} call to ${to}`);
-  console.log(`📡 Room: ${room}, Agora channel: ${agoraChannel}`);
+  console.log(`📡 Room: ${room}, Agora channel: ${agoraChannel}, CallId: ${callId}`);
   
   if (!agoraChannel) {
     console.error('❌ No agoraChannel provided');
@@ -885,16 +885,15 @@ io.on('connection', (socket) => {
   if (recipientUser?.socketId) {
     io.to(recipientUser.socketId).emit('incoming_call', {
       room,
-      agoraChannel, // ✅ Pass exact channel name
+      agoraChannel,
       callType,
       from,
       to,
-      callId: `call_${Date.now()}`
+      callId // ✅ Pass the same callId
     });
     
-    console.log(`✅ Call notification sent to ${to}`);
+    console.log(`✅ Call notification sent to ${to} with callId: ${callId}`);
   } else {
-    // ✅ Notify caller that recipient is offline
     const senderUser = userssample[from];
     if (senderUser?.socketId) {
       io.to(senderUser.socketId).emit('call_failed', {
@@ -903,8 +902,6 @@ io.on('connection', (socket) => {
     }
   }
 });
-
-
   // ================================
   // ✅ ACCEPT CALL
   // ================================
