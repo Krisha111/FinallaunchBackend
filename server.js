@@ -871,11 +871,45 @@ io.on('connection', (socket) => {
   // ================================
   // ✅ INITIATE CALL (NO ROOM JOIN)
   // ================================
- socket.on('initiate_call', ({ room, agoraChannel, callType, from, to, callId }) => {
+//  socket.on('initiate_call', ({ room, agoraChannel, callType, from, to, callId }) => {
+//   console.log(`📞 ${from} initiating ${callType} call to ${to}`);
+//   console.log(`📡 Room: ${room}`);
+//   console.log(`📡 Agora Channel: ${agoraChannel}`);
+//   console.log(`📋 CallId: ${callId}`);
+  
+//   if (!agoraChannel) {
+//     console.error('❌ No agoraChannel provided');
+//     socket.emit('call_failed', { reason: 'Invalid channel name' });
+//     return;
+//   }
+  
+//   const recipientUser = userssample[to];
+  
+//   if (recipientUser?.socketId) {
+//     io.to(recipientUser.socketId).emit('incoming_call', {
+//       room,
+//       agoraChannel,  // ✅ Pass the exact same channel name
+//       callType,
+//       from,
+//       to,
+//       callId
+//     });
+    
+//     console.log(`✅ Call notification sent to ${to}`);
+//     console.log(`📡 Receiver will join channel: ${agoraChannel}`);
+//   } else {
+//     const senderUser = userssample[from];
+//     if (senderUser?.socketId) {
+//       io.to(senderUser.socketId).emit('call_failed', {
+//         reason: `${to} is currently offline`
+//       });
+//     }
+//   }
+// });
+socket.on('initiate_call', ({ room, agoraChannel, callType, from, to, callId }) => {
   console.log(`📞 ${from} initiating ${callType} call to ${to}`);
-  console.log(`📡 Room: ${room}`);
+  console.log(`📡 Original room: ${room}`);
   console.log(`📡 Agora Channel: ${agoraChannel}`);
-  console.log(`📋 CallId: ${callId}`);
   
   if (!agoraChannel) {
     console.error('❌ No agoraChannel provided');
@@ -886,9 +920,10 @@ io.on('connection', (socket) => {
   const recipientUser = userssample[to];
   
   if (recipientUser?.socketId) {
+    // ✅ Pass EXACT channel name to receiver
     io.to(recipientUser.socketId).emit('incoming_call', {
       room,
-      agoraChannel,  // ✅ Pass the exact same channel name
+      agoraChannel,  // Must be EXACT same string
       callType,
       from,
       to,
@@ -896,17 +931,11 @@ io.on('connection', (socket) => {
     });
     
     console.log(`✅ Call notification sent to ${to}`);
-    console.log(`📡 Receiver will join channel: ${agoraChannel}`);
+    console.log(`📡 Receiver MUST join channel: ${agoraChannel}`);
   } else {
-    const senderUser = userssample[from];
-    if (senderUser?.socketId) {
-      io.to(senderUser.socketId).emit('call_failed', {
-        reason: `${to} is currently offline`
-      });
-    }
+    socket.emit('call_failed', { reason: `${to} is currently offline` });
   }
 });
-
   // ================================
   // ✅ ACCEPT CALL
   // ================================
