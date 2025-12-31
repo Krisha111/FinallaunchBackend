@@ -873,10 +873,13 @@ io.on('connection', (socket) => {
   // ================================
  socket.on('initiate_call', ({ room, agoraChannel, callType, from, to, callId }) => {
   console.log(`📞 ${from} initiating ${callType} call to ${to}`);
-  console.log(`📡 Room: ${room}, Agora channel: ${agoraChannel}, CallId: ${callId}`);
+  console.log(`📡 Room: ${room}`);
+  console.log(`📡 Agora Channel: ${agoraChannel}`);
+  console.log(`📋 CallId: ${callId}`);
   
   if (!agoraChannel) {
     console.error('❌ No agoraChannel provided');
+    socket.emit('call_failed', { reason: 'Invalid channel name' });
     return;
   }
   
@@ -885,14 +888,15 @@ io.on('connection', (socket) => {
   if (recipientUser?.socketId) {
     io.to(recipientUser.socketId).emit('incoming_call', {
       room,
-      agoraChannel,
+      agoraChannel,  // ✅ Pass the exact same channel name
       callType,
       from,
       to,
-      callId // ✅ Pass the same callId
+      callId
     });
     
-    console.log(`✅ Call notification sent to ${to} with callId: ${callId}`);
+    console.log(`✅ Call notification sent to ${to}`);
+    console.log(`📡 Receiver will join channel: ${agoraChannel}`);
   } else {
     const senderUser = userssample[from];
     if (senderUser?.socketId) {
