@@ -902,6 +902,7 @@ io.on('connection', (socket) => {
     }
   }
 });
+
   // ================================
   // ✅ ACCEPT CALL
   // ================================
@@ -920,9 +921,22 @@ io.on('connection', (socket) => {
   //   }
   // });
 
-  socket.on('accept_call', ({ room, agoraChannel, callId, from, to }) => {
+ socket.on('accept_call', ({ room, agoraChannel, callId, from, to }) => {
   console.log(`✅ ${to} accepted call from ${from}`);
-  // Caller is already in channel - no need to emit anything back
+  console.log(`📡 Channel: ${agoraChannel}, CallId: ${callId}`);
+  
+  const fromUser = userssample[from];
+  
+  if (fromUser?.socketId) {
+    io.to(fromUser.socketId).emit('call_accepted', {
+      room,
+      agoraChannel,
+      callId,
+      from,
+      to
+    });
+    console.log(`✅ Notified ${from} that ${to} joined`);
+  }
 });
 
 
