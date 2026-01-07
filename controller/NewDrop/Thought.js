@@ -14,6 +14,7 @@ const BASE_URL = process.env.BASE_URL || "https://finallaunchbackend.onrender.co
  * @route  GET /api/thoughts/user/:userId
  * @access Public
  */
+
 export const getThoughtsByUserId = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -106,16 +107,24 @@ export const getAllThoughts = async (req, res) => {
 
 export const createThoughtPost = async (req, res) => {
   try {
-    const { thoughtText } = req.body;
+    const { thoughtText, thoughtCaption, thoughtLocation } = req.body;
 
-    // ✅ Validate text is provided
     if (!thoughtText || thoughtText.trim() === '') {
       return res.status(400).json({ message: "Thought text is required" });
     }
 
+    if (!req.files || !req.files.coverPhoto) {
+      return res.status(400).json({ message: "Cover photo is required" });
+    }
+
+    const coverPhotoUrl = `${BASE_URL}/uploads/${req.files.coverPhoto[0].filename}`;
+
     const newThought = new Thought({
       user: req.user._id,
       thoughtText: thoughtText.trim(),
+      thoughtCaption: thoughtCaption?.trim() || '',
+      thoughtLocation: thoughtLocation?.trim() || '',
+      coverPhoto: coverPhotoUrl,
       type: "regular",
     });
 
@@ -138,6 +147,8 @@ export const createThoughtPost = async (req, res) => {
     });
   }
 };
+
+
 export const getAllThoughtPosts = async (req, res) => {
   try {
     const userId = req.user?._id;

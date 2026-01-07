@@ -7,8 +7,9 @@ const thoughtSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-
-    // ✅ ONLY TEXT - NO MEDIA
+ thoughtCaption: { type: String, trim: true },
+  thoughtLocation: { type: String, trim: true },
+     coverPhoto: { type: String, required: true }, 
     thoughtText: { type: String, required: true, trim: true },
    
     type: {
