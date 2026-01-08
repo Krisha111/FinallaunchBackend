@@ -79,7 +79,7 @@ router.get('/user/:userId', getThoughtsByUserId);
 router.get('/all', getAllThoughts);
 router.delete('/:thoughtId', protect, deleteThought);
 
-router.post('/newThoughtDrop', protect, createThoughtPost);
+router.post('/newThoughtDrop', protect, upload.single('coverPhoto'),createThoughtPost);
 
 router.get('/getNewThoughtDrop', protect, getAllThoughtPosts);
 router.get('/mine', protect, getMyThoughtPosts);
