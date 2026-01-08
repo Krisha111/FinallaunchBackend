@@ -32,6 +32,8 @@ export const getThoughtsByUserId = async (req, res) => {
       return res.status(404).json({ message: "No thoughts found for this user" });
     }
 
+    console.log("Fetched thoughts:", thoughts.map(t => ({ id: t._id, coverPhoto: t.coverPhoto }))); // ✅ ADD THIS
+
     res.json(thoughts);
   } catch (err) {
     console.error("❌ Error fetching thoughts by user ID:", err);
