@@ -113,11 +113,12 @@ export const createThoughtPost = async (req, res) => {
       return res.status(400).json({ message: "Thought text is required" });
     }
 
-    if (!req.files || !req.files.coverPhoto) {
+    // ✅ FIX: use req.file (single file)
+    if (!req.file) {
       return res.status(400).json({ message: "Cover photo is required" });
     }
 
-    const coverPhotoUrl = `${BASE_URL}/uploads/${req.files.coverPhoto[0].filename}`;
+    const coverPhotoUrl = `${BASE_URL}/uploads/${req.file.filename}`;
 
     const newThought = new Thought({
       user: req.user._id,
@@ -130,20 +131,19 @@ export const createThoughtPost = async (req, res) => {
 
     await newThought.save();
 
-    const populatedThought = await Thought.findById(newThought._id).populate(
-      "user",
-      "username profileImage email"
-    );
+    const populatedThought = await Thought.findById(newThought._id)
+      .populate("user", "username profileImage email");
 
-    res.status(201).json({ 
-      message: "Thought created successfully", 
-      thought: populatedThought 
+    res.status(201).json({
+      message: "Thought created successfully",
+      thought: populatedThought
     });
+
   } catch (err) {
     console.error("❌ Error creating thought:", err);
-    res.status(500).json({ 
-      message: "Error creating thought", 
-      error: err.toString() 
+    res.status(500).json({
+      message: "Error creating thought",
+      error: err.message
     });
   }
 };
