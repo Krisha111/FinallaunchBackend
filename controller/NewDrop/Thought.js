@@ -115,12 +115,12 @@ export const createThoughtPost = async (req, res) => {
       return res.status(400).json({ message: "Thought text is required" });
     }
 
-    // ✅ FIX: use req.file (single file)
     if (!req.file) {
       return res.status(400).json({ message: "Cover photo is required" });
     }
 
-    const coverPhotoUrl = `${BASE_URL}/uploads/${req.file.filename}`;
+    // ✅ FIX: Use Cloudinary URL directly
+    const coverPhotoUrl = req.file.path;
 
     const newThought = new Thought({
       user: req.user._id,
@@ -149,7 +149,6 @@ export const createThoughtPost = async (req, res) => {
     });
   }
 };
-
 
 export const getAllThoughtPosts = async (req, res) => {
   try {
