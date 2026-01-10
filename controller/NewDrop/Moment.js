@@ -12,6 +12,221 @@ dotenv.config();
 
 const BASE_URL = process.env.BASE_URL || "https://finallaunchbackend.onrender.com";
 
+
+// =======================================================
+//  VIEW MOMENT (Track viewer streak)
+// =======================================================
+export const viewMoment = async (req, res) => {
+  try {
+    const { momentId } = req.params;
+    const viewerId = req.user._id;
+
+    const moment = await Moment.findById(momentId);
+    if (!moment) return res.status(404).json({ message: "Moment not found" });
+
+    // Don't track if viewing own moment
+    if (moment.user.toString() === viewerId.toString()) {
+      return res.status(200).json({ message: "Own moment - view not tracked" });
+    }
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    // Find existing viewer
+    const existingViewer = moment.viewers.find(
+      v => v.user.toString() === viewerId.toString()
+    );
+
+    if (existingViewer) {
+      const lastViewDate = new Date(existingViewer.lastViewDate);
+      const lastViewDay = new Date(
+        lastViewDate.getFullYear(),
+        lastViewDate.getMonth(),
+        lastViewDate.getDate()
+      );
+
+      const daysDiff = Math.floor((today - lastViewDay) / (1000 * 60 * 60 * 24));
+
+      if (daysDiff === 0) {
+        // Already viewed today, just update timestamp
+        existingViewer.viewedAt = now;
+      } else if (daysDiff === 1) {
+        // Consecutive day - increment streak
+        existingViewer.consecutiveDays += 1;
+        existingViewer.viewedAt = now;
+        existingViewer.lastViewDate = now;
+      } else {
+        // Streak broken - reset to 1
+        existingViewer.consecutiveDays = 1;
+        existingViewer.viewedAt = now;
+        existingViewer.lastViewDate = now;
+      }
+    } else {
+      // New viewer
+      moment.viewers.push({
+        user: viewerId,
+        viewedAt: now,
+        consecutiveDays: 1,
+        lastViewDate: now
+      });
+    }
+
+    await moment.save();
+    await moment.populate('viewers.user', 'username profileImage');
+
+    res.status(200).json({
+      message: "View tracked successfully",
+      viewerStreak: existingViewer ? existingViewer.consecutiveDays : 1,
+      totalViewers: moment.viewers.length
+    });
+  } catch (error) {
+    console.error("❌ View tracking error:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// =======================================================
+//  GET MOMENT VIEWERS WITH STREAKS
+// =======================================================
+export const getMomentViewers = async (req, res) => {
+  try {
+    const { momentId } = req.params;
+
+    const moment = await Moment.findById(momentId)
+      .populate('viewers.user', 'username profileImage name');
+
+    if (!moment) return res.status(404).json({ message: "Moment not found" });
+
+    // Sort viewers by consecutive days (highest first)
+    const sortedViewers = moment.viewers
+      .map(v => ({
+        user: v.user,
+        consecutiveDays: v.consecutiveDays,
+        lastViewed: v.viewedAt
+      }))
+      .sort((a, b) => b.consecutiveDays - a.consecutiveDays);
+
+    res.status(200).json({
+      totalViewers: moment.viewers.length,
+      viewers: sortedViewers
+    });
+  } catch (error) {
+    console.error("❌ Error fetching viewers:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// =======================================================
+//  GET USER'S UPLOAD STREAK
+// =======================================================
+export const getUserMomentStreak = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId).select('momentStreak username profileImage');
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json({
+      username: user.username,
+      profileImage: user.profileImage,
+      currentStreak: user.momentStreak?.currentStreak || 0,
+      longestStreak: user.momentStreak?.longestStreak || 0,
+      lastUploadDate: user.momentStreak?.lastUploadDate
+    });
+  } catch (error) {
+    console.error("❌ Error fetching user streak:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// ✅ UPDATE createMomentPost to track upload streak
+// Replace your existing createMomentPost with this:
+export const createMomentPost = async (req, res) => {
+  try {
+    const momentPhotos = req.files?.momentPhotos || [];
+    const momentVideos = req.files?.momentVideos || [];
+
+    if (momentPhotos.length === 0 && momentVideos.length === 0) {
+      return res.status(400).json({ 
+        message: "At least one photo or video is required for a moment" 
+      });
+    }
+
+    const photoMomentImages = momentPhotos.map(file => file.path);
+    const videoMomentFiles = momentVideos.map(file => file.path);
+
+    const newMoment = new Moment({
+      user: req.user._id,
+      photoMomentImages,
+      videoMomentFiles,
+      type: "regular"
+    });
+
+    await newMoment.save();
+
+    // ✅ UPDATE USER STREAK
+    const user = await User.findById(req.user._id);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (!user.momentStreak) {
+      user.momentStreak = {
+        currentStreak: 1,
+        longestStreak: 1,
+        lastUploadDate: now
+      };
+    } else {
+      const lastUpload = user.momentStreak.lastUploadDate 
+        ? new Date(user.momentStreak.lastUploadDate)
+        : null;
+
+      if (lastUpload) {
+        const lastUploadDay = new Date(
+          lastUpload.getFullYear(),
+          lastUpload.getMonth(),
+          lastUpload.getDate()
+        );
+        const daysDiff = Math.floor((today - lastUploadDay) / (1000 * 60 * 60 * 24));
+
+        if (daysDiff === 0) {
+          // Already uploaded today - no streak change
+        } else if (daysDiff === 1) {
+          // Consecutive day - increment streak
+          user.momentStreak.currentStreak += 1;
+          user.momentStreak.lastUploadDate = now;
+
+          if (user.momentStreak.currentStreak > user.momentStreak.longestStreak) {
+            user.momentStreak.longestStreak = user.momentStreak.currentStreak;
+          }
+        } else {
+          // Streak broken - reset to 1
+          user.momentStreak.currentStreak = 1;
+          user.momentStreak.lastUploadDate = now;
+        }
+      } else {
+        user.momentStreak.currentStreak = 1;
+        user.momentStreak.lastUploadDate = now;
+      }
+    }
+
+    await user.save();
+
+    const populatedMoment = await Moment.findById(newMoment._id)
+      .populate("user", "username profileImage email");
+
+    res.status(201).json({
+      message: "Moment created successfully",
+      moment: populatedMoment,
+      uploadStreak: user.momentStreak.currentStreak
+    });
+  } catch (err) {
+    console.error("❌ Error creating moment:", err);
+    res.status(500).json({
+      message: "Error creating moment",
+      error: err.toString(),
+    });
+  }
+};
 // =======================================================
 //  GET MOMENTS BY USER ID
 // =======================================================
@@ -122,48 +337,48 @@ export const getAllMoments = async (req, res) => {
 // =======================================================
 //  CREATE MOMENT POST (FILES ONLY MATCH MODEL)
 // =======================================================
-export const createMomentPost = async (req, res) => {
-  try {
-    const momentPhotos = req.files?.momentPhotos || [];
-    const momentVideos = req.files?.momentVideos || [];
+// export const createMomentPost = async (req, res) => {
+//   try {
+//     const momentPhotos = req.files?.momentPhotos || [];
+//     const momentVideos = req.files?.momentVideos || [];
 
-    // ✅ Validate at least one media type
-    if (momentPhotos.length === 0 && momentVideos.length === 0) {
-      return res.status(400).json({ 
-        message: "At least one photo or video is required for a moment" 
-      });
-    }
+//     // ✅ Validate at least one media type
+//     if (momentPhotos.length === 0 && momentVideos.length === 0) {
+//       return res.status(400).json({ 
+//         message: "At least one photo or video is required for a moment" 
+//       });
+//     }
 
-    const photoMomentImages = momentPhotos.map(file => file.path);
-    const videoMomentFiles = momentVideos.map(file => file.path);
+//     const photoMomentImages = momentPhotos.map(file => file.path);
+//     const videoMomentFiles = momentVideos.map(file => file.path);
 
-    console.log("📸 Moment Photos:", photoMomentImages);
-    console.log("🎥 Moment Videos:", videoMomentFiles);
+//     console.log("📸 Moment Photos:", photoMomentImages);
+//     console.log("🎥 Moment Videos:", videoMomentFiles);
 
-    const newMoment = new Moment({
-      user: req.user._id,
-      photoMomentImages,
-      videoMomentFiles,
-      type: "regular"
-    });
+//     const newMoment = new Moment({
+//       user: req.user._id,
+//       photoMomentImages,
+//       videoMomentFiles,
+//       type: "regular"
+//     });
 
-    await newMoment.save();
+//     await newMoment.save();
 
-    const populatedMoment = await Moment.findById(newMoment._id)
-      .populate("user", "username profileImage email");
+//     const populatedMoment = await Moment.findById(newMoment._id)
+//       .populate("user", "username profileImage email");
 
-    res.status(201).json({
-      message: "Moment created successfully",
-      moment: populatedMoment
-    });
-  } catch (err) {
-    console.error("❌ Error creating moment:", err);
-    res.status(500).json({
-      message: "Error creating moment",
-      error: err.toString(),
-    });
-  }
-};
+//     res.status(201).json({
+//       message: "Moment created successfully",
+//       moment: populatedMoment
+//     });
+//   } catch (err) {
+//     console.error("❌ Error creating moment:", err);
+//     res.status(500).json({
+//       message: "Error creating moment",
+//       error: err.toString(),
+//     });
+//   }
+// };
 // =======================================================
 //  GET MOMENTS OF AUTHENTICATED USER
 // =======================================================

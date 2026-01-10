@@ -16,7 +16,10 @@ import {
   commentOnMoment,
   getMomentsByUserId,
   deleteMoment,
-  deleteMomentComment  
+  deleteMomentComment,  
+  viewMoment,
+  getMomentViewers,
+  getUserMomentStreak
 } from '../../controller/NewDrop/Moment.js';
 import { protect } from '../../MiddleWare/authMiddleware.js';
 
@@ -80,7 +83,10 @@ const audioUpload = multer({ storage: audioStorage });
 router.get('/user/:userId', getMomentsByUserId);
 router.get('/all', getAllMoments);
 router.delete('/:momentId', protect, deleteMoment);
-
+// ✅ ADD these routes after your existing routes
+router.post('/:momentId/view', protect, viewMoment);
+router.get('/:momentId/viewers', protect, getMomentViewers);
+router.get('/streak/:userId', getUserMomentStreak);
 router.post(
   '/newMomentDrop',
   protect,

@@ -20,6 +20,11 @@ chosen: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     unique: true,
     trim: true
   },
+  momentStreak: {
+  currentStreak: { type: Number, default: 0 },
+  longestStreak: { type: Number, default: 0 },
+  lastUploadDate: { type: Date, default: null }
+},
     reels: [{ type: mongoose.Schema.Types.ObjectId, ref: "Reel" }],
   googleId: String,
   email: {

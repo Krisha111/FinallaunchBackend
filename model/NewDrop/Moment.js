@@ -33,6 +33,22 @@ const momentSchema = new mongoose.Schema(
       },
     ],
 
+    // ✅ NEW: Viewers tracking with streak
+    viewers: [
+      {
+        user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        viewedAt: { type: Date, default: Date.now },
+        consecutiveDays: { type: Number, default: 1 },
+        lastViewDate: { type: Date, default: Date.now }
+      }
+    ],
+
+    // ✅ NEW: 24-hour expiration (like Instagram Stories)
+    expiresAt: {
+      type: Date,
+      default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
+    },
+
     savedMoments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Moment' }],
   },
   { timestamps: true }
@@ -46,5 +62,8 @@ momentSchema.pre('save', function(next) {
     next();
   }
 });
+
+// ✅ Index for auto-deletion of expired moments
+momentSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model('Moment', momentSchema);
