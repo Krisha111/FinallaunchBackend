@@ -97,12 +97,12 @@ router.post(
   createMomentPost 
 );
 // ✅ ADD THIS after image upload route
-router.post('/upload/audio', protect, audioUpload.single('audio'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: 'No audio file uploaded' });
-  }
-  res.json({ url: req.file.path });
-});
+// router.post('/upload/audio', protect, audioUpload.single('audio'), (req, res) => {
+//   if (!req.file) {
+//     return res.status(400).json({ error: 'No audio file uploaded' });
+//   }
+//   res.json({ url: req.file.path });
+// });
 router.get('/getNewMomentDrop', protect, getAllMomentPosts);
 router.get('/mine', protect, getMyMomentPosts);
 router.post('/save/:momentId', protect, saveMoment);
