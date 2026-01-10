@@ -7,6 +7,11 @@ const momentSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
+    momentStreak: {
+  currentStreak: { type: Number, default: 0 },
+  longestStreak: { type: Number, default: 0 },
+  lastUploadDate: { type: Date, default: null }
+},
 
     // ✅ Either photos OR videos (at least one required)
     photoMomentImages: { type: [String], default: [] },

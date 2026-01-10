@@ -126,6 +126,16 @@ export const getUserMomentStreak = async (req, res) => {
     const user = await User.findById(userId).select('momentStreak username profileImage');
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    // ✅ Initialize if doesn't exist
+    if (!user.momentStreak) {
+      user.momentStreak = {
+        currentStreak: 0,
+        longestStreak: 0,
+        lastUploadDate: null
+      };
+      await user.save();
+    }
+
     res.status(200).json({
       username: user.username,
       profileImage: user.profileImage,
