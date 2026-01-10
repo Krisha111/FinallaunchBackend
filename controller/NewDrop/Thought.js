@@ -222,28 +222,44 @@ export const getSavedThoughts = async (req, res) => {
   }
 };
 
-export const addCommentToThought = createAsyncThunk(
-  "thoughtNewDrop/addCommentToThought",
-  async ({ thoughtId, text, parentCommentId }, { rejectWithValue }) => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      if (!token) return rejectWithValue("No token found");
+export const addCommentToThought = async (req, res) => {
+  try {
+    const { thoughtId } = req.params;
+    const { text, parentCommentId } = req.body;
 
-      const { data } = await axios.post(
-        `${BASE_URL}/comments/${thoughtId}`,
-        { text, parentCommentId },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      return data.thought ?? data;
-    } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || error.message || "Failed to comment"
-      );
+    const thought = await Thought.findById(thoughtId);
+    if (!thought) return res.status(404).json({ message: 'Thought not found' });
+
+    const newComment = {
+      user: req.user._id,
+      text: text,
+      createdAt: new Date(),
+      parentCommentId: parentCommentId || null,
+      replies: []
+    };
+
+    thought.comments.push(newComment);
+    const addedComment = thought.comments[thought.comments.length - 1];
+
+    if (parentCommentId) {
+      const parentComment = thought.comments.id(parentCommentId);
+      if (parentComment) {
+        parentComment.replies.push(addedComment._id);
+      }
     }
+
+    thought.commentCount = thought.comments.length;
+    await thought.save();
+
+    await thought.populate('comments.user', 'username profileImage');
+    await thought.populate('user', 'username profileImage');
+
+    res.json({ success: true, thought: thought });
+  } catch (error) {
+    console.error('❌ Comment error:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
-);
-
-
+};
 export const likeThought = async (req, res) => {
   try {
     const { thoughtId } = req.params;
