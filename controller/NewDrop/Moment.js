@@ -48,21 +48,17 @@ export const viewMoment = async (req, res) => {
       const daysDiff = Math.floor((today - lastViewDay) / (1000 * 60 * 60 * 24));
 
       if (daysDiff === 0) {
-        // Already viewed today, just update timestamp
         existingViewer.viewedAt = now;
       } else if (daysDiff === 1) {
-        // Consecutive day - increment streak
         existingViewer.consecutiveDays += 1;
         existingViewer.viewedAt = now;
         existingViewer.lastViewDate = now;
       } else {
-        // Streak broken - reset to 1
         existingViewer.consecutiveDays = 1;
         existingViewer.viewedAt = now;
         existingViewer.lastViewDate = now;
       }
     } else {
-      // New viewer
       moment.viewers.push({
         user: viewerId,
         viewedAt: now,
@@ -97,7 +93,6 @@ export const getMomentViewers = async (req, res) => {
 
     if (!moment) return res.status(404).json({ message: "Moment not found" });
 
-    // Sort viewers by consecutive days (highest first)
     const sortedViewers = moment.viewers
       .map(v => ({
         user: v.user,
@@ -124,9 +119,14 @@ export const getUserMomentStreak = async (req, res) => {
     const { userId } = req.params;
 
     const user = await User.findById(userId).select('momentStreak username profileImage');
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) {
+      return res.status(200).json({
+        currentStreak: 0,
+        longestStreak: 0,
+        lastUploadDate: null
+      });
+    }
 
-    // ✅ Initialize if doesn't exist
     if (!user.momentStreak) {
       user.momentStreak = {
         currentStreak: 0,
@@ -145,9 +145,14 @@ export const getUserMomentStreak = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error fetching user streak:", error);
-    res.status(500).json({ message: "Server error", error: error.message });
+    res.status(200).json({
+      currentStreak: 0,
+      longestStreak: 0,
+      lastUploadDate: null
+    });
   }
 };
+
 
 // ✅ UPDATE createMomentPost to track upload streak
 // Replace your existing createMomentPost with this:
@@ -199,9 +204,8 @@ export const createMomentPost = async (req, res) => {
         const daysDiff = Math.floor((today - lastUploadDay) / (1000 * 60 * 60 * 24));
 
         if (daysDiff === 0) {
-          // Already uploaded today - no streak change
+          // Already uploaded today
         } else if (daysDiff === 1) {
-          // Consecutive day - increment streak
           user.momentStreak.currentStreak += 1;
           user.momentStreak.lastUploadDate = now;
 
@@ -209,7 +213,6 @@ export const createMomentPost = async (req, res) => {
             user.momentStreak.longestStreak = user.momentStreak.currentStreak;
           }
         } else {
-          // Streak broken - reset to 1
           user.momentStreak.currentStreak = 1;
           user.momentStreak.lastUploadDate = now;
         }
@@ -244,23 +247,49 @@ export const getMomentsByUserId = async (req, res) => {
   try {
     const { userId } = req.params;
 
+    console.log('📌 Fetching moments for userId:', userId);
+
+    // ✅ Validate MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ error: "Invalid user ID" });
+      console.log('❌ Invalid user ID format');
+      return res.status(400).json({ 
+        message: "Invalid user ID format",
+        moments: [] 
+      });
     }
 
+    // ✅ Check if user exists first
+    const userExists = await User.findById(userId);
+    if (!userExists) {
+      console.log('❌ User not found');
+      return res.status(404).json({ 
+        message: "User not found",
+        moments: [] 
+      });
+    }
+
+    // ✅ Fetch moments
     const moments = await Moment.find({ user: userId })
       .populate("user", "username profileImage bio")
       .populate("comments.user", "username profileImage")
+      .populate("viewers.user", "username profileImage")
       .sort({ createdAt: -1 });
 
+    console.log(`✅ Found ${moments.length} moments for user ${userId}`);
+
+    // ✅ Return empty array instead of 404 if no moments
     if (!moments || moments.length === 0) {
-      return res.status(404).json({ message: "No moments found for this user" });
+      return res.status(200).json([]);
     }
 
-    res.json(moments);
+    res.status(200).json(moments);
   } catch (err) {
     console.error("❌ Error fetching moments by user ID:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ 
+      message: "Internal server error",
+      error: err.message,
+      moments: [] 
+    });
   }
 };
 
@@ -292,7 +321,7 @@ export const deleteMoment = async (req, res) => {
 };
 
 // =======================================================
-//  ADD COMMENT (TOP LEVEL ONLY)
+//  ADD COMMENT
 // =======================================================
 export const commentOnMoment = async (req, res) => {
   try {
@@ -345,51 +374,6 @@ export const getAllMoments = async (req, res) => {
 };
 
 // =======================================================
-//  CREATE MOMENT POST (FILES ONLY MATCH MODEL)
-// =======================================================
-// export const createMomentPost = async (req, res) => {
-//   try {
-//     const momentPhotos = req.files?.momentPhotos || [];
-//     const momentVideos = req.files?.momentVideos || [];
-
-//     // ✅ Validate at least one media type
-//     if (momentPhotos.length === 0 && momentVideos.length === 0) {
-//       return res.status(400).json({ 
-//         message: "At least one photo or video is required for a moment" 
-//       });
-//     }
-
-//     const photoMomentImages = momentPhotos.map(file => file.path);
-//     const videoMomentFiles = momentVideos.map(file => file.path);
-
-//     console.log("📸 Moment Photos:", photoMomentImages);
-//     console.log("🎥 Moment Videos:", videoMomentFiles);
-
-//     const newMoment = new Moment({
-//       user: req.user._id,
-//       photoMomentImages,
-//       videoMomentFiles,
-//       type: "regular"
-//     });
-
-//     await newMoment.save();
-
-//     const populatedMoment = await Moment.findById(newMoment._id)
-//       .populate("user", "username profileImage email");
-
-//     res.status(201).json({
-//       message: "Moment created successfully",
-//       moment: populatedMoment
-//     });
-//   } catch (err) {
-//     console.error("❌ Error creating moment:", err);
-//     res.status(500).json({
-//       message: "Error creating moment",
-//       error: err.toString(),
-//     });
-//   }
-// };
-// =======================================================
 //  GET MOMENTS OF AUTHENTICATED USER
 // =======================================================
 export const getAllMomentPosts = async (req, res) => {
@@ -430,7 +414,6 @@ export const getMyMomentPosts = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 // =======================================================
 //  SAVE MOMENT
 // =======================================================
@@ -537,7 +520,6 @@ export const likeMoment = async (req, res) => {
     } else {
       moment.likes.push(userId);
 
-      // Send notification only if liking someone else's moment
       if (moment.user._id.toString() !== userId.toString()) {
         try {
           const liker = await User.findById(userId).select("name username profileImage");
