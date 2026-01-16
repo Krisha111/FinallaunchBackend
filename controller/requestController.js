@@ -10,6 +10,33 @@ import User from '../model/User.js';
 
 import Notification from '../model/Notification.js';
 
+
+// Get requests for a specific user (for viewing other profiles)
+export const getUserRequests = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const requests = await Request.find({
+      recipient: userId,
+      status: 'pending'
+    })
+      .populate('sender', 'name username profileImage')
+      .populate('recipient', 'name username profileImage')
+      .sort({ createdAt: -1 });
+
+    res.json({
+      success: true,
+      requests
+    });
+  } catch (error) {
+    console.error('Error fetching user requests:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch requests'
+    });
+  }
+};
+
 // ✅ Get all notifications (likes, comments, etc.)
 export const getNotifications = async (req, res) => {
   try {
