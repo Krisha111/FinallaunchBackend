@@ -315,6 +315,38 @@ io.on('connection', (socket) => {
     socket.emit('invite_cancelled_confirm', { to });
   });
 
+
+  // ================================
+// ✅ CHAT MESSAGE HANDLERS (Add after line ~200)
+// ================================
+socket.on('join_chat_room', ({ chatId, userId }) => {
+  socket.join(`chat_${chatId}`);
+  console.log(`💬 User ${userId} joined chat room: chat_${chatId}`);
+});
+
+socket.on('leave_chat_room', ({ chatId }) => {
+  socket.leave(`chat_${chatId}`);
+  console.log(`📤 User left chat room: chat_${chatId}`);
+});
+
+socket.on('new_chat_message', ({ chatId, senderId, recipientId }) => {
+  console.log(`💬 New message in chat ${chatId}`);
+  
+  // Notify recipient to refresh their chat list
+  io.to(recipientId.toString()).emit('chat_list_update', { chatId });
+  
+  // Also emit to chat room if both users are in it
+  io.to(`chat_${chatId}`).emit('message_received', { chatId });
+});
+
+socket.on('mark_chat_opened', ({ chatId, userId }) => {
+  console.log(`👁️ User ${userId} opened chat ${chatId}`);
+  
+  // Notify all users in this chat that it was opened
+  io.to(`chat_${chatId}`).emit('chat_opened', { chatId, userId });
+});
+
+
   // ================================
   // ✅ USER ROOM HANDLERS
   // ================================

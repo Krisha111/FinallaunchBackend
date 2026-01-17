@@ -62,7 +62,6 @@ export const getMessages = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 export const sendMessage = async (req, res) => {
   try {
     const { recipientId, message } = req.body;
@@ -105,12 +104,21 @@ export const sendMessage = async (req, res) => {
       await chat.save();
     }
     
+    // ✅ EMIT SOCKET EVENT TO UPDATE CHAT LISTS
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('new_chat_message', {
+        chatId: chat._id.toString(),
+        senderId: senderId.toString(),
+        recipientId: recipientId.toString(),
+      });
+    }
+    
     res.status(201).json({ message: newMessage, chatId: chat._id });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
 };
-
 export const getNewChats = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -161,15 +169,22 @@ export const markChatAsOpened = async (req, res) => {
     });
 
     if (chat) {
-      // Always reset unread count when opening chat
       chat.unreadCount.set(userId.toString(), 0);
       
-      // Add to isOpenedBy if not already there
       if (!chat.isOpenedBy.includes(userId)) {
         chat.isOpenedBy.push(userId);
       }
       
       await chat.save();
+      
+      // ✅ EMIT SOCKET EVENT
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('mark_chat_opened', {
+          chatId: chat._id.toString(),
+          userId: userId.toString(),
+        });
+      }
     }
 
     res.json({ success: true });
@@ -177,7 +192,6 @@ export const markChatAsOpened = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 export const getMyChats = async (req, res) => {
   try {
     const userId = req.user._id;
