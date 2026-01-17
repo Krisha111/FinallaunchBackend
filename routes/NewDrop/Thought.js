@@ -86,7 +86,7 @@ router.get('/mine', protect, getMyThoughtPosts);
 router.post('/save/:thoughtId', protect, saveThought);
 router.get('/saved', protect, getSavedThoughts);
 router.post('/:thoughtId/like', protect, likeThought);
-router.post('/comments/:thoughtId', protect, addCommentToThought);
+router.post('/comments/:thoughtId', protect, commentOnThought);
 router.delete('/comments/:thoughtId/:commentId', protect, deleteThoughtComment);
 
 router.post('/upload/image', protect, imageUpload.single('image'), (req, res) => {

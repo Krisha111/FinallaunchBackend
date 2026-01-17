@@ -151,7 +151,6 @@ export const getNewChats = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
-
 export const markChatAsOpened = async (req, res) => {
   try {
     const { otherUserId } = req.body;
@@ -161,9 +160,15 @@ export const markChatAsOpened = async (req, res) => {
       participants: { $all: [userId, otherUserId] }
     });
 
-    if (chat && !chat.isOpenedBy.includes(userId)) {
-      chat.isOpenedBy.push(userId);
+    if (chat) {
+      // Always reset unread count when opening chat
       chat.unreadCount.set(userId.toString(), 0);
+      
+      // Add to isOpenedBy if not already there
+      if (!chat.isOpenedBy.includes(userId)) {
+        chat.isOpenedBy.push(userId);
+      }
+      
       await chat.save();
     }
 
@@ -172,6 +177,7 @@ export const markChatAsOpened = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
 export const getMyChats = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -190,19 +196,20 @@ export const getMyChats = async (req, res) => {
       
       const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
       const hasMessages = chat.lastMessage && chat.lastMessage.length > 0;
+      const isOpenedByMe = chat.isOpenedBy.some(id => id.toString() === userId.toString());
       
-    return {
-  _id: chat._id,
-  otherUser,
-  lastMessage: {
-    text: chat.lastMessage,
-    timestamp: chat.lastMessageTime,
-    sender: chat.lastMessageSender?._id,
-  },
-  hasMessages,
-  unreadCount,
-  isOpenedBy: chat.isOpenedBy.includes(userId), // Add this line
-};
+      return {
+        _id: chat._id,
+        otherUser,
+        lastMessage: {
+          text: chat.lastMessage,
+          timestamp: chat.lastMessageTime,
+          sender: chat.lastMessageSender?._id,
+        },
+        hasMessages,
+        unreadCount,
+        isOpenedBy: isOpenedByMe, // Fixed to return boolean instead of array check
+      };
     });
     
     res.json(formattedChats);
