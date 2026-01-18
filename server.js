@@ -783,16 +783,35 @@ socket.on('mark_chat_opened', ({ chatId, userId }) => {
   });
 
 
-
-  // ================================
-  // ✅ SEND MESSAGE
-  // ================================
-  socket.on('send_message', ({ room, message, sender }) => {
-    console.log(
-      `💬 Message in ${room} from ${sender}: ${message.substring(0, 50)}`
-    );
-    io.to(room).emit('receive_message', { sender, message });
-  });
+// Replace existing send_message handler with:
+socket.on('send_message', ({ room, to, from, message, chatId }) => {
+  console.log(`💬 Message from ${from} to ${to}: ${message?.substring(0, 50)}`);
+  
+  // Emit to recipient
+  const recipientUser = userssample[to];
+  if (recipientUser?.socketId) {
+    io.to(recipientUser.socketId).emit('receive_message', {
+      from,
+      to,
+      message,
+      chatId,
+      timestamp: new Date().toISOString(),
+    });
+    console.log(`✅ Message delivered to ${to}`);
+  }
+  
+  // If in a room, also emit there
+  if (room) {
+    io.to(room).emit('receive_message', { 
+      sender: from, 
+      message 
+    });
+  }
+  
+  // Emit chat list update to both users
+  io.to(from).emit('chat_list_update', { chatId });
+  io.to(to).emit('chat_list_update', { chatId });
+});
 
   // ================================
   // ✅ SYNC REEL INDEX
