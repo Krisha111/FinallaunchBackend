@@ -382,18 +382,23 @@ socket.on('mark_chat_opened', ({ chatId, userId }) => {
     console.log(`👤 User connected: ${userId}`);
   });
 
+
   socket.on('register', async ({ username, userId }) => {
-    if (!username) return;
-    console.log(`✅ Registered: ${username} (${userId})`);
-    socket.join(userId.toString());
+    if (!username || !userId) {
+      console.warn('⚠️ Registration failed: missing username or userId');
+      return;
+    }
+    
+    console.log(`✅ Registering: ${username} (${userId})`);
+    
     socket.username = username;
     socket.userId = userId;
+    socket.join(userId.toString());
 
     let profileImage = '';
     let bio = '';
 
     userSockets.set(userId.toString(), socket.id);
-    socket.join(userId.toString());
 
     try {
       const user = await User.findOne({ username });
@@ -411,9 +416,46 @@ socket.on('mark_chat_opened', ({ chatId, userId }) => {
       bio,
     };
 
-    console.log(`✅ Registered: ${username} (${socket.id})`);
-    io.emit('active_users', Object.values(userssample));
+    const activeUsersList = Object.values(userssample);
+    console.log(`👥 Broadcasting ${activeUsersList.length} active users`);
+    
+    // Emit to ALL connected clients
+    io.emit('active_users', activeUsersList);
   });
+
+  
+  // socket.on('register', async ({ username, userId }) => {
+  //   if (!username) return;
+  //   console.log(`✅ Registered: ${username} (${userId})`);
+  //   socket.join(userId.toString());
+  //   socket.username = username;
+  //   socket.userId = userId;
+
+  //   let profileImage = '';
+  //   let bio = '';
+
+  //   userSockets.set(userId.toString(), socket.id);
+  //   socket.join(userId.toString());
+
+  //   try {
+  //     const user = await User.findOne({ username });
+  //     if (user?.profileImage) profileImage = user.profileImage;
+  //     if (user?.bio) bio = user.bio;
+  //   } catch (err) {
+  //     console.error('Error fetching user profile:', err.message);
+  //   }
+
+  //   userssample[username] = {
+  //     socketId: socket.id,
+  //     username,
+  //     userId,
+  //     profileImage,
+  //     bio,
+  //   };
+
+  //   console.log(`✅ Registered: ${username} (${socket.id})`);
+  //   io.emit('active_users', Object.values(userssample));
+  // });
 
   // ================================
   // ✅ ACCEPT INVITE FROM NOTIFICATION
@@ -785,11 +827,11 @@ socket.on('mark_chat_opened', ({ chatId, userId }) => {
 
 socket.on('send_message', ({ room, to, from, message, chatId, toUserId, fromUserId }) => {
   console.log(`💬 Socket Message from ${from} to ${to}`);
+  console.log(`📋 Message: "${message?.substring(0, 50)}"`);
   console.log(`📋 UserIds: ${fromUserId} → ${toUserId}`);
   
-  // ✅ Use userId (not username) to emit
+  // ✅ Emit to recipient
   const recipientSocketId = userSockets.get(toUserId?.toString());
-  
   if (recipientSocketId) {
     io.to(recipientSocketId).emit('receive_message', {
       from,
@@ -798,9 +840,22 @@ socket.on('send_message', ({ room, to, from, message, chatId, toUserId, fromUser
       chatId,
       timestamp: new Date().toISOString(),
     });
-    console.log(`✅ Message delivered to socket: ${recipientSocketId}`);
+    console.log(`✅ Message sent to recipient socket: ${recipientSocketId}`);
   } else {
     console.log(`⚠️ Recipient ${to} (${toUserId}) not connected`);
+  }
+  
+  // ✅ ALSO emit to sender (for multi-device sync)
+  const senderSocketId = userSockets.get(fromUserId?.toString());
+  if (senderSocketId && senderSocketId !== socket.id) {
+    io.to(senderSocketId).emit('receive_message', {
+      from,
+      to,
+      message,
+      chatId,
+      timestamp: new Date().toISOString(),
+    });
+    console.log(`✅ Message echoed to sender's other devices`);
   }
   
   // ✅ Emit chat list updates using userId rooms
@@ -809,8 +864,15 @@ socket.on('send_message', ({ room, to, from, message, chatId, toUserId, fromUser
   }
   if (toUserId) {
     io.to(toUserId.toString()).emit('chat_list_update', { chatId });
+    // ✅ Also emit specific event for new messages
+    io.to(toUserId.toString()).emit('new_chat_message', { 
+      chatId, 
+      from, 
+      message: message?.substring(0, 100) 
+    });
   }
 });
+
   // ================================
   // ✅ SYNC REEL INDEX
   // ================================
