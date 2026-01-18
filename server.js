@@ -783,36 +783,34 @@ socket.on('mark_chat_opened', ({ chatId, userId }) => {
   });
 
 
-// Replace existing send_message handler with:
-socket.on('send_message', ({ room, to, from, message, chatId }) => {
-  console.log(`💬 Message from ${from} to ${to}: ${message?.substring(0, 50)}`);
+socket.on('send_message', ({ room, to, from, message, chatId, toUserId, fromUserId }) => {
+  console.log(`💬 Socket Message from ${from} to ${to}`);
+  console.log(`📋 UserIds: ${fromUserId} → ${toUserId}`);
   
-  // Emit to recipient
-  const recipientUser = userssample[to];
-  if (recipientUser?.socketId) {
-    io.to(recipientUser.socketId).emit('receive_message', {
+  // ✅ Use userId (not username) to emit
+  const recipientSocketId = userSockets.get(toUserId?.toString());
+  
+  if (recipientSocketId) {
+    io.to(recipientSocketId).emit('receive_message', {
       from,
       to,
       message,
       chatId,
       timestamp: new Date().toISOString(),
     });
-    console.log(`✅ Message delivered to ${to}`);
+    console.log(`✅ Message delivered to socket: ${recipientSocketId}`);
+  } else {
+    console.log(`⚠️ Recipient ${to} (${toUserId}) not connected`);
   }
   
-  // If in a room, also emit there
-  if (room) {
-    io.to(room).emit('receive_message', { 
-      sender: from, 
-      message 
-    });
+  // ✅ Emit chat list updates using userId rooms
+  if (fromUserId) {
+    io.to(fromUserId.toString()).emit('chat_list_update', { chatId });
   }
-  
-  // Emit chat list update to both users
-  io.to(from).emit('chat_list_update', { chatId });
-  io.to(to).emit('chat_list_update', { chatId });
+  if (toUserId) {
+    io.to(toUserId.toString()).emit('chat_list_update', { chatId });
+  }
 });
-
   // ================================
   // ✅ SYNC REEL INDEX
   // ================================
