@@ -5,7 +5,7 @@ import {
   acceptCall, 
   rejectCall, 
   endCall 
-} from '../../controllers/Call/CallController.js';
+} from '../../controller/requestController.js';
 import verifyToken from '../../MiddleWare/verifyToken.js';
 import { protect } from '../../MiddleWare/authMiddleware.js';
 
