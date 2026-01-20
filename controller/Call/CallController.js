@@ -8,7 +8,7 @@ const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 export const generateAgoraToken = async (req, res) => {
   try {
     const { channelName, uid = 0 } = req.body;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     if (!channelName) {
       return res.status(400).json({ message: 'Channel name required' });
@@ -56,7 +56,7 @@ export const generateAgoraToken = async (req, res) => {
 export const initiateCall = async (req, res) => {
   try {
     const { recipientId, callType } = req.body; // callType: 'audio' or 'video'
-    const callerId = req.user.id;
+    const callerId = req.user._id;
 
     if (!recipientId || !callType) {
       return res.status(400).json({ message: 'Recipient and call type required' });
@@ -67,10 +67,15 @@ export const initiateCall = async (req, res) => {
 
     // Get socket.io instance
     const io = req.app.get('io');
-    const onlineUsers = req.app.get('onlineUsers');
-
-    // Check if recipient is online
-    const recipientSocketId = onlineUsers[recipientId];
+    const userSockets = new Map();
+    
+    // Find recipient socket (you may need to adapt this to your socket storage)
+    let recipientSocketId = null;
+    io.sockets.sockets.forEach((socket) => {
+      if (socket.userId === recipientId) {
+        recipientSocketId = socket.id;
+      }
+    });
     
     if (!recipientSocketId) {
       return res.status(404).json({ message: 'User is offline' });
@@ -104,12 +109,17 @@ export const initiateCall = async (req, res) => {
 export const acceptCall = async (req, res) => {
   try {
     const { callId, callerId } = req.body;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     const io = req.app.get('io');
-    const onlineUsers = req.app.get('onlineUsers');
 
-    const callerSocketId = onlineUsers[callerId];
+    // Find caller socket
+    let callerSocketId = null;
+    io.sockets.sockets.forEach((socket) => {
+      if (socket.userId === callerId) {
+        callerSocketId = socket.id;
+      }
+    });
     
     if (callerSocketId) {
       io.to(callerSocketId).emit('call_accepted', {
@@ -130,12 +140,17 @@ export const acceptCall = async (req, res) => {
 export const rejectCall = async (req, res) => {
   try {
     const { callId, callerId } = req.body;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     const io = req.app.get('io');
-    const onlineUsers = req.app.get('onlineUsers');
 
-    const callerSocketId = onlineUsers[callerId];
+    // Find caller socket
+    let callerSocketId = null;
+    io.sockets.sockets.forEach((socket) => {
+      if (socket.userId === callerId) {
+        callerSocketId = socket.id;
+      }
+    });
     
     if (callerSocketId) {
       io.to(callerSocketId).emit('call_rejected', {
@@ -156,12 +171,17 @@ export const rejectCall = async (req, res) => {
 export const endCall = async (req, res) => {
   try {
     const { callId, otherUserId } = req.body;
-    const userId = req.user.id;
+    const userId = req.user._id;
 
     const io = req.app.get('io');
-    const onlineUsers = req.app.get('onlineUsers');
 
-    const otherUserSocketId = onlineUsers[otherUserId];
+    // Find other user socket
+    let otherUserSocketId = null;
+    io.sockets.sockets.forEach((socket) => {
+      if (socket.userId === otherUserId) {
+        otherUserSocketId = socket.id;
+      }
+    });
     
     if (otherUserSocketId) {
       io.to(otherUserSocketId).emit('call_ended', {
