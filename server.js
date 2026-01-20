@@ -213,18 +213,21 @@ app.use(
 // ================================
 
 
+// ✅ Move /api/call BEFORE the root '/' route
+app.use('/api/call', callRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/chats', chatRoutes);
 app.use('/api/profile', profileStatsRoutes);
-app.use('/auth', signUpRouteUser);
-app.use('/', signInRouteUser);
 app.use('/api/reels', reelRoutes);
 app.use('/api/moments', momentRoutes);
 app.use('/api/thoughts', thoughtRoutes);
 app.use('/api/posts', postRoutes);
 app.use('/api/profileInformation', profileInformationRoutes);
 app.use('/api/requests', requestRoutes);
-app.use('/api/call', callRoutes);
-app.use('/api/chats', chatRoutes);
+
+// ✅ Auth routes LAST (they use '/' which catches everything)
+app.use('/auth', signUpRouteUser);
+app.use('/', signInRouteUser);
 
 
 
