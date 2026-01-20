@@ -5,15 +5,16 @@ import {
   acceptCall, 
   rejectCall, 
   endCall 
-} from '../../controller/Call/CallController.js';
+} from '../../controllers/Call/CallController.js';
 import verifyToken from '../../MiddleWare/verifyToken.js';
+import { protect } from '../../MiddleWare/authMiddleware.js';
 
 const router = express.Router();
 
-router.post('/generate-token', verifyToken, generateAgoraToken);
-router.post('/initiate', verifyToken, initiateCall);
-router.post('/accept', verifyToken, acceptCall);
-router.post('/reject', verifyToken, rejectCall);
-router.post('/end', verifyToken, endCall);
+router.post('/generate-token', protect, generateAgoraToken);
+router.post('/initiate', protect, initiateCall);
+router.post('/accept', protect, acceptCall);
+router.post('/reject', protect, rejectCall);
+router.post('/end', protect, endCall);
 
 export default router;
