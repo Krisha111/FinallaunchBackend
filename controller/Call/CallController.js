@@ -1,8 +1,8 @@
 import pkg from 'agora-access-token';
 const { RtcTokenBuilder, RtcRole } = pkg;
 
-const APP_ID = process.env.AGORA_APP_ID;
-const APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
+const APP_ID = "1991693dedff48b594ad5077f75464e6"
+const APP_CERTIFICATE = "243531feb6c94e17b1a3a2e87215b238";
 
 // Generate Agora RTC token
 export const generateAgoraToken = async (req, res) => {
@@ -55,48 +55,42 @@ export const generateAgoraToken = async (req, res) => {
 // Initiate call
 export const initiateCall = async (req, res) => {
   try {
-    const { recipientId, callType } = req.body; // callType: 'audio' or 'video'
+    const { recipientId, callType, callId } = req.body;
     const callerId = req.user._id;
 
     if (!recipientId || !callType) {
       return res.status(400).json({ message: 'Recipient and call type required' });
     }
 
-    // Create unique channel name
-    const channelName = `call_${Math.min(callerId, recipientId)}_${Math.max(callerId, recipientId)}`;
-
-    // Get socket.io instance
     const io = req.app.get('io');
-    const userSockets = new Map();
-    
-    // Find recipient socket (you may need to adapt this to your socket storage)
+
+    // Find recipient socket
     let recipientSocketId = null;
     io.sockets.sockets.forEach((socket) => {
-      if (socket.userId === recipientId) {
+      if (socket.userId === recipientId.toString()) {
         recipientSocketId = socket.id;
       }
     });
-    
+
     if (!recipientSocketId) {
       return res.status(404).json({ message: 'User is offline' });
     }
 
     const callData = {
-      callId: `${callerId}_${recipientId}_${Date.now()}`,
+      callId: callId || `${callerId}_${recipientId}_${Date.now()}`,
       from: callerId,
       to: recipientId,
       callType,
-      channelName,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
 
-    // Emit incoming call to recipient
+    // Emit incoming call notification to recipient
     io.to(recipientSocketId).emit('incoming_call', callData);
 
     res.json({
       success: true,
       message: 'Call initiated',
-      ...callData
+      ...callData,
     });
 
   } catch (error) {
@@ -104,7 +98,6 @@ export const initiateCall = async (req, res) => {
     res.status(500).json({ message: 'Failed to initiate call' });
   }
 };
-
 // Accept call
 export const acceptCall = async (req, res) => {
   try {
@@ -178,15 +171,15 @@ export const endCall = async (req, res) => {
     // Find other user socket
     let otherUserSocketId = null;
     io.sockets.sockets.forEach((socket) => {
-      if (socket.userId === otherUserId) {
+      if (socket.userId === otherUserId.toString()) {
         otherUserSocketId = socket.id;
       }
     });
-    
+
     if (otherUserSocketId) {
       io.to(otherUserSocketId).emit('call_ended', {
         callId,
-        endedBy: userId
+        endedBy: userId,
       });
     }
 

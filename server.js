@@ -284,6 +284,83 @@ function createRoomName(user1, user2) {
 
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
+ socket.on('register_user', (userId) => {
+    socket.userId = userId;
+    console.log(`User ${userId} registered with socket ${socket.id}`);
+  });
+
+  // WebRTC Signaling Events
+  socket.on('webrtc:offer', ({ to, offer, callType, callId, from, fromUsername }) => {
+    console.log('WebRTC Offer:', { from, to, callId });
+    
+    // Find recipient socket
+    let recipientSocket = null;
+    io.sockets.sockets.forEach((s) => {
+      if (s.userId === to.toString()) {
+        recipientSocket = s;
+      }
+    });
+
+    if (recipientSocket) {
+      recipientSocket.emit('webrtc:offer', {
+        from,
+        offer,
+        callType,
+        callId,
+        fromUsername,
+      });
+    } else {
+      socket.emit('user_offline', { userId: to });
+    }
+  });
+
+  socket.on('webrtc:answer', ({ to, answer, callId }) => {
+    console.log('WebRTC Answer:', { to, callId });
+    
+    // Find caller socket
+    let callerSocket = null;
+    io.sockets.sockets.forEach((s) => {
+      if (s.userId === to.toString()) {
+        callerSocket = s;
+      }
+    });
+
+    if (callerSocket) {
+      callerSocket.emit('webrtc:answer', { answer, callId });
+    }
+  });
+
+  socket.on('webrtc:ice-candidate', ({ to, candidate, callId }) => {
+    console.log('ICE Candidate:', { to, callId });
+    
+    // Find recipient socket
+    let recipientSocket = null;
+    io.sockets.sockets.forEach((s) => {
+      if (s.userId === to.toString()) {
+        recipientSocket = s;
+      }
+    });
+
+    if (recipientSocket) {
+      recipientSocket.emit('webrtc:ice-candidate', { candidate, callId });
+    }
+  });
+
+  socket.on('webrtc:end-call', ({ to, callId }) => {
+    console.log('End Call:', { to, callId });
+    
+    // Find recipient socket
+    let recipientSocket = null;
+    io.sockets.sockets.forEach((s) => {
+      if (s.userId === to.toString()) {
+        recipientSocket = s;
+      }
+    });
+
+    if (recipientSocket) {
+      recipientSocket.emit('call_ended', { callId });
+    }
+  });
 
   // ================================
   // ✅ CANCEL INVITE HANDLER
