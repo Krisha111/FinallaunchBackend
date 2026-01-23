@@ -296,82 +296,6 @@ socket.on('get_active_users', () => {
   console.log(`📤 Sent ${activeUsersList.length} active users to ${socket.username || 'unknown'}`);
 });
 
-  // WebRTC Signaling Events
-  // socket.on('webrtc:offer', ({ to, offer, callType, callId, from, fromUsername }) => {
-  //   console.log('WebRTC Offer:', { from, to, callId });
-    
-  //   // Find recipient socket
-  //   let recipientSocket = null;
-  //   io.sockets.sockets.forEach((s) => {
-  //     if (s.userId === to.toString()) {
-  //       recipientSocket = s;
-  //     }
-  //   });
-
-  //   if (recipientSocket) {
-  //     recipientSocket.emit('webrtc:offer', {
-  //       from,
-  //       offer,
-  //       callType,
-  //       callId,
-  //       fromUsername,
-  //     });
-  //   } else {
-  //     socket.emit('user_offline', { userId: to });
-  //   }
-  // });
-
-  // socket.on('webrtc:answer', ({ to, answer, callId }) => {
-  //   console.log('WebRTC Answer:', { to, callId });
-    
-  //   // Find caller socket
-  //   let callerSocket = null;
-  //   io.sockets.sockets.forEach((s) => {
-  //     if (s.userId === to.toString()) {
-  //       callerSocket = s;
-  //     }
-  //   });
-
-  //   if (callerSocket) {
-  //     callerSocket.emit('webrtc:answer', { answer, callId });
-  //   }
-  // });
-
-  // socket.on('webrtc:ice-candidate', ({ to, candidate, callId }) => {
-  //   console.log('ICE Candidate:', { to, callId });
-    
-  //   // Find recipient socket
-  //   let recipientSocket = null;
-  //   io.sockets.sockets.forEach((s) => {
-  //     if (s.userId === to.toString()) {
-  //       recipientSocket = s;
-  //     }
-  //   });
-
-  //   if (recipientSocket) {
-  //     recipientSocket.emit('webrtc:ice-candidate', { candidate, callId });
-  //   }
-  // });
-
-  // socket.on('webrtc:end-call', ({ to, callId }) => {
-  //   console.log('End Call:', { to, callId });
-    
-  //   // Find recipient socket
-  //   let recipientSocket = null;
-  //   io.sockets.sockets.forEach((s) => {
-  //     if (s.userId === to.toString()) {
-  //       recipientSocket = s;
-  //     }
-  //   });
-
-  //   if (recipientSocket) {
-  //     recipientSocket.emit('call_ended', { callId });
-  //   }
-  // });
-
-  // ================================
-  // ✅ CANCEL INVITE HANDLER
-  // ================================
   socket.on('cancel_invite', ({ to, from }) => {
     console.log(`❌ ${from} cancelled invite to ${to}`);
 
@@ -470,46 +394,92 @@ socket.on('mark_chat_opened', ({ chatId, userId }) => {
   });
 
 
-  socket.on('register', async ({ username, userId }) => {
-    if (!username || !userId) {
-      console.warn('⚠️ Registration failed: missing username or userId');
-      return;
-    }
+  // socket.on('register', async ({ username, userId }) => {
+  //   if (!username || !userId) {
+  //     console.warn('⚠️ Registration failed: missing username or userId');
+  //     return;
+  //   }
     
-    console.log(`✅ Registering: ${username} (${userId})`);
+  //   console.log(`✅ Registering: ${username} (${userId})`);
     
-    socket.username = username;
-    socket.userId = userId;
-    socket.join(userId.toString());
+  //   socket.username = username;
+  //   socket.userId = userId;
+  //   socket.join(userId.toString());
 
-    let profileImage = '';
-    let bio = '';
+  //   let profileImage = '';
+  //   let bio = '';
 
-    userSockets.set(userId.toString(), socket.id);
+  //   userSockets.set(userId.toString(), socket.id);
 
-    try {
-      const user = await User.findOne({ username });
-      if (user?.profileImage) profileImage = user.profileImage;
-      if (user?.bio) bio = user.bio;
-    } catch (err) {
-      console.error('Error fetching user profile:', err.message);
-    }
+  //   try {
+  //     const user = await User.findOne({ username });
+  //     if (user?.profileImage) profileImage = user.profileImage;
+  //     if (user?.bio) bio = user.bio;
+  //   } catch (err) {
+  //     console.error('Error fetching user profile:', err.message);
+  //   }
 
-    userssample[username] = {
-      socketId: socket.id,
-      username,
-      userId,
-      profileImage,
-      bio,
-    };
+  //   userssample[username] = {
+  //     socketId: socket.id,
+  //     username,
+  //     userId,
+  //     profileImage,
+  //     bio,
+  //   };
 
-    const activeUsersList = Object.values(userssample);
-    console.log(`👥 Broadcasting ${activeUsersList.length} active users`);
+  //   const activeUsersList = Object.values(userssample);
+  //   console.log(`👥 Broadcasting ${activeUsersList.length} active users`);
     
-    // Emit to ALL connected clients
-    io.emit('active_users', activeUsersList);
-  });
+  //   // Emit to ALL connected clients
+  //   io.emit('active_users', activeUsersList);
+  // });
 
+
+  // ✅ REMOVE the duplicate socket.on('register') around line 350
+// Keep only ONE register handler:
+
+socket.on('register', async ({ username, userId }) => {
+  if (!username || !userId) {
+    console.warn('⚠️ Registration failed: missing username or userId');
+    return;
+  }
+  
+  console.log(`✅ Registering: ${username} (${userId})`);
+  
+  socket.username = username;
+  socket.userId = userId;
+  socket.join(userId.toString());
+
+  let profileImage = '';
+  let bio = '';
+
+  userSockets.set(userId.toString(), socket.id);
+
+  try {
+    const user = await User.findOne({ username });
+    if (user?.profileImage) profileImage = user.profileImage;
+    if (user?.bio) bio = user.bio;
+  } catch (err) {
+    console.error('Error fetching user profile:', err.message);
+  }
+
+  userssample[username] = {
+    socketId: socket.id,
+    username,
+    userId,
+    profileImage,
+    bio,
+  };
+
+  const activeUsersList = Object.values(userssample);
+  console.log(`👥 Broadcasting ${activeUsersList.length} active users`);
+  
+  // ✅ Broadcast to ALL clients immediately
+  io.emit('active_users', activeUsersList);
+  
+  // ✅ Also send directly to the newly connected user
+  socket.emit('active_users', activeUsersList);
+});
   
   // socket.on('register', async ({ username, userId }) => {
   //   if (!username) return;
@@ -698,90 +668,7 @@ socket.on('mark_chat_opened', ({ chatId, userId }) => {
   });
 
 
-  // ================================
-  // FRONTEND FIX - Update initiateCall
-  // ================================
-
-  const initiateCall = async (type) => {
-    console.log('🔥 INITIATING CALL:', {
-      type,
-      room,
-      from: username,
-      to: chatWith
-    });
-
-    const hasPermissions = await requestPermissions();
-    if (!hasPermissions) {
-      Alert.alert('Permission Denied', 'Camera and microphone access required');
-      return;
-    }
-
-    setCallType(type);
-
-    // ✅ Create simple alphanumeric channel name (NO special characters)
-    const cleanRoom = room.replace(/[^a-zA-Z0-9]/g, '');
-    const agoraChannel = cleanRoom.substring(0, 64); // Max 64 chars
-
-    console.log('🔍 Original room:', room);
-    console.log('🔍 Clean Agora channel:', agoraChannel);
-
-    const engine = await initAgoraEngine();
-    if (!engine) {
-      Alert.alert('Error', 'Failed to initialize call');
-      return;
-    }
-
-    try {
-      if (type === 'audio') {
-        await engine.disableVideo();
-      } else {
-        await engine.enableVideo();
-        await engine.startPreview();
-      }
-
-      const options = {
-        clientRoleType: ClientRoleType.ClientRoleBroadcaster,
-      };
-
-      console.log('🔄 Caller joining Agora channel:', agoraChannel);
-      await engine.joinChannel(null, agoraChannel, 0, options);
-
-      console.log('✅ Caller joined Agora channel successfully');
-      setInCall(true);
-
-      socket.emit('initiate_call', {
-        room,
-        agoraChannel,
-        callType: type,
-        from: username,
-        to: chatWith,
-      });
-
-      Alert.alert('Calling...', `Waiting for ${chatWith} to accept`);
-    } catch (err) {
-      console.error('❌ Caller failed to join:', err);
-      console.error('❌ Error details:', {
-        code: err.code,
-        message: err.message,
-        channel: agoraChannel
-      });
-      Alert.alert('Error', `Failed to start call: ${err.message}`);
-      setCallType(null);
-      setInCall(false);
-    }
-  };
-
-  // ================================
-  // ✅ SEND NOTIFICATION
-  // ================================
-  // socket.on('send-notification', (data) => {
-  //   const { receiverId } = data;
-  //   const receiverSocket = onlineUsers[receiverId];
-  //   if (receiverSocket) {
-  //     io.to(receiverSocket).emit('new_notification', data);
-  //     console.log(`🔔 Notification sent to ${receiverId}`);
-  //   }
-  // });
+  
   socket.on('send-notification', (data) => {
     const { receiverId } = data;
 
@@ -1062,129 +949,7 @@ socket.on('send_message', ({ room, to, from, message, chatId, toUserId, fromUser
     return (clean.substring(0, 64) || 'fallback').toLowerCase();
   }
 
-  // ================================
-  // REPLACE your call handlers with these simplified versions
-  // ================================
-
-  // ================================
-  // ✅ INITIATE CALL (NO ROOM JOIN)
-  // ================================
-//  socket.on('initiate_call', ({ room, agoraChannel, callType, from, to, callId }) => {
-//   console.log(`📞 ${from} initiating ${callType} call to ${to}`);
-//   console.log(`📡 Room: ${room}`);
-//   console.log(`📡 Agora Channel: ${agoraChannel}`);
-//   console.log(`📋 CallId: ${callId}`);
   
-//   if (!agoraChannel) {
-//     console.error('❌ No agoraChannel provided');
-//     socket.emit('call_failed', { reason: 'Invalid channel name' });
-//     return;
-//   }
-  
-//   const recipientUser = userssample[to];
-  
-//   if (recipientUser?.socketId) {
-//     io.to(recipientUser.socketId).emit('incoming_call', {
-//       room,
-//       agoraChannel,  // ✅ Pass the exact same channel name
-//       callType,
-//       from,
-//       to,
-//       callId
-//     });
-    
-//     console.log(`✅ Call notification sent to ${to}`);
-//     console.log(`📡 Receiver will join channel: ${agoraChannel}`);
-//   } else {
-//     const senderUser = userssample[from];
-//     if (senderUser?.socketId) {
-//       io.to(senderUser.socketId).emit('call_failed', {
-//         reason: `${to} is currently offline`
-//       });
-//     }
-//   }
-// });
-socket.on('initiate_call', ({ room, agoraChannel, callType, from, to, callId }) => {
-  console.log(`📞 ${from} initiating ${callType} call to ${to}`);
-  console.log(`📡 Original room: ${room}`);
-  console.log(`📡 Agora Channel: ${agoraChannel}`);
-  
-  if (!agoraChannel) {
-    console.error('❌ No agoraChannel provided');
-    socket.emit('call_failed', { reason: 'Invalid channel name' });
-    return;
-  }
-  
-  const recipientUser = userssample[to];
-  
-  if (recipientUser?.socketId) {
-    // ✅ Pass EXACT channel name to receiver
-    io.to(recipientUser.socketId).emit('incoming_call', {
-      room,
-      agoraChannel,  // Must be EXACT same string
-      callType,
-      from,
-      to,
-      callId
-    });
-    
-    console.log(`✅ Call notification sent to ${to}`);
-    console.log(`📡 Receiver MUST join channel: ${agoraChannel}`);
-  } else {
-    socket.emit('call_failed', { reason: `${to} is currently offline` });
-  }
-});
-  // ================================
-  // ✅ ACCEPT CALL
-  // ================================
-  // socket.on('accept_call', ({ room, agoraChannel, callId, from, to }) => {
-  //   console.log(`✅ ${to} accepted call from ${from}`);
-  //   console.log(`📡 Using Agora channel: ${agoraChannel}`);
-
-  //   const fromUser = userssample[from];
-
-  //   if (fromUser?.socketId) {
-  //     io.to(fromUser.socketId).emit('call_accepted', {
-  //       room,
-  //       agoraChannel,
-  //       callId
-  //     });
-  //   }
-  // });
-
- socket.on('accept_call', ({ room, agoraChannel, callId, from, to }) => {
-  console.log(`✅ ${to} accepted call from ${from}`);
-  console.log(`📡 Channel: ${agoraChannel}, CallId: ${callId}`);
-  
-  const fromUser = userssample[from];
-  
-  if (fromUser?.socketId) {
-    io.to(fromUser.socketId).emit('call_accepted', {
-      room,
-      agoraChannel,
-      callId,
-      from,
-      to
-    });
-    console.log(`✅ Notified ${from} that ${to} joined`);
-  }
-});
-
-
-  socket.on('reject_call', ({ callId, from, to }) => {
-    console.log(`❌ ${to} rejected call from ${from}`);
-
-    const fromUser = userssample[from];
-
-    if (fromUser?.socketId) {
-      io.to(fromUser.socketId).emit('call_rejected', { callId });
-    }
-  });
-
-  socket.on('end_call', ({ room }) => {
-    console.log(`📴 Call ended in room: ${room}`);
-    io.to(room).emit('call_ended', { room });
-  });
 
 
   // ✅ Update disconnect handler - add this inside your existing disconnect handler
@@ -1287,110 +1052,6 @@ setInterval(() => {
 }, 5000);
 
 
-// ================================
-// ✅ Root Test Route
-// ================================
-app.get('/', (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>ReelChatt Backend</title>
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          height: 100vh;
-          margin: 0;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          color: white;
-        }
-        .container {
-          text-align: center;
-          background: rgba(255,255,255,0.1);
-          padding: 40px;
-          border-radius: 15px;
-          backdrop-filter: blur(10px);
-        }
-        h1 { margin: 0 0 20px 0; }
-        .status { 
-          background: #4CAF50; 
-          padding: 10px 20px; 
-          border-radius: 5px;
-          display: inline-block;
-          margin-top: 20px;
-        }
-        .info {
-          margin-top: 20px;
-          font-size: 14px;
-          opacity: 0.9;
-        }
-        .stats {
-          display: flex;
-          gap: 20px;
-          justify-content: center;
-          margin-top: 20px;
-          flex-wrap: wrap;
-        }
-        .stat-box {
-          background: rgba(255,255,255,0.15);
-          padding: 15px 20px;
-          border-radius: 10px;
-          min-width: 120px;
-        }
-        .stat-number {
-          font-size: 24px;
-          font-weight: bold;
-          margin-bottom: 5px;
-        }
-        .stat-label {
-          font-size: 12px;
-          opacity: 0.8;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h1>🎬 ReelChatt Backend</h1>
-        <div class="status">✅ Server Running</div>
-        <div class="info">
-          <p>Environment: ${process.env.NODE_ENV || 'development'}</p>
-          <p>MongoDB: ${mongoose.connection.readyState === 1
-      ? '✅ Connected'
-      : '❌ Disconnected'
-    }</p>
-          <p>Socket.IO: ✅ Active</p>
-        </div>
-        <div class="stats">
-          <div class="stat-box">
-            <div class="stat-number">${Object.keys(userssample).length}</div>
-            <div class="stat-label">Online Users</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-number">${Object.keys(rooms).length}</div>
-            <div class="stat-label">Active Rooms</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-number">${pendingInvites.size}</div>
-            <div class="stat-label">Pending Invites</div>
-          </div>
-        </div>
-      </div>
-    </body>
-    </html>
-  `);
-});
-
-// ================================
-// ✅ AGORA TOKEN GENERATION ENDPOINT (Removed - Audio/Agora disabled)
-// ================================
-// (Previously present block removed intentionally)
-
-// ================================
-// ✅ 404 Handler
-// ================================
 app.use((req, res) => {
   res.status(404).json({
     error: 'Route not found',
