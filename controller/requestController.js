@@ -9,7 +9,31 @@ import User from '../model/User.js';
 
 
 import Notification from '../model/Notification.js';
+// ✅ Add this helper function at the top of requestController.js
+import axios from 'axios';
 
+async function sendPushNotification(expoPushToken, title, body, data = {}) {
+  const message = {
+    to: expoPushToken,
+    sound: 'default',
+    title: title,
+    body: body,
+    data: data,
+    priority: 'high',
+    channelId: 'default',
+  };
+
+  try {
+    await axios.post('https://exp.host/--/api/v2/push/send', message, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    console.log('✅ Push notification sent to:', expoPushToken);
+  } catch (error) {
+    console.error('❌ Failed to send push notification:', error.response?.data || error.message);
+  }
+}
 
 // Get requests for a specific user (for viewing other profiles)
 export const getUserRequests = async (req, res) => {
@@ -62,28 +86,18 @@ export const getNotifications = async (req, res) => {
     });
   }
 };
-// ✅ Send like notification
-// export const sendLikeNotification = async (req, res) => {
-//   console.log('\n🔔 ========== SEND LIKE NOTIFICATION ==========');
-//   console.log('📦 Request body:', req.body);
-//   console.log('👤 Liker ID (from auth):', req.user?._id);
 
+// export const sendLikeNotification = async (req, res) => {
 //   try {
 //     const { postId, postOwnerId } = req.body;
 //     const likerId = req.user._id;
 
-//     // Don't send notification if user likes their own post
 //     if (likerId.toString() === postOwnerId.toString()) {
-//       console.log('⚠️ Self-like detected, skipping notification');
 //       return res.status(200).json({ message: 'Self-like, no notification sent' });
 //     }
 
-//     console.log('📝 Fetching liker info...');
-//     const liker = await User.findById(likerId).select('name username');
-//     console.log('✅ Liker:', liker);
+//     const liker = await User.findById(likerId).select('name username profileImage');
 
-//     // Create notification in database
-//     console.log('💾 Creating notification in database...');
 //     const notification = await Notification.create({
 //       user: postOwnerId,
 //       type: 'post_like',
@@ -91,33 +105,28 @@ export const getNotifications = async (req, res) => {
 //       sender: likerId,
 //       postId: postId
 //     });
-//     console.log('✅ Notification created:', notification._id);
 
-//     // ✅ Get socket.io instance
 //     const io = req.app.get('io');
-//     if (!io) {
-//       console.error('❌ Socket.io instance not found on app!');
-//       return res.status(500).json({ message: 'Socket.io not configured' });
+//     if (io) {
+//       const socketData = {
+//         type: 'post_like',
+//         from: liker.name || liker.username,
+//         senderId: likerId.toString(),
+//         message: `${liker.name || liker.username} liked your post`,
+//         postId: postId,
+//         timestamp: Date.now(),
+//         // ✅ ADD sender data with profile image
+//         sender: {
+//           _id: likerId.toString(),
+//           username: liker.username,
+//           name: liker.name,
+//           profileImage: liker.profileImage
+//         }
+//       };
+
+//       io.to(postOwnerId.toString()).emit('new_notification', socketData);
 //     }
 
-//     console.log('📡 Socket.io instance found');
-//     console.log('📤 Emitting to room:', postOwnerId.toString());
-
-//     // ✅ Emit socket event to post owner's room
-//     const socketData = {
-//       type: 'post_like',
-//       from: liker.name || liker.username,
-//       senderId: likerId.toString(),
-//       message: `${liker.name || liker.username} liked your post`,
-//       postId: postId,
-//       timestamp: Date.now()
-//     };
-
-//     console.log('📨 Socket data:', socketData);
-//     io.to(postOwnerId.toString()).emit('new_notification', socketData);
-//     console.log('✅ Socket event emitted successfully');
-
-//     console.log('========================================\n');
 //     res.status(200).json({
 //       success: true,
 //       message: 'Notification sent',
@@ -125,14 +134,14 @@ export const getNotifications = async (req, res) => {
 //     });
 //   } catch (error) {
 //     console.error('❌ Send like notification error:', error);
-//     console.error('❌ Error stack:', error.stack);
-//     console.log('========================================\n');
 //     res.status(500).json({
 //       success: false,
 //       message: error.message
 //     });
 //   }
 // };
+
+
 export const sendLikeNotification = async (req, res) => {
   try {
     const { postId, postOwnerId } = req.body;
@@ -143,6 +152,7 @@ export const sendLikeNotification = async (req, res) => {
     }
 
     const liker = await User.findById(likerId).select('name username profileImage');
+    const postOwner = await User.findById(postOwnerId).select('expoPushToken');
 
     const notification = await Notification.create({
       user: postOwnerId,
@@ -154,23 +164,34 @@ export const sendLikeNotification = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) {
-      const socketData = {
+      io.to(postOwnerId.toString()).emit('new_notification', {
         type: 'post_like',
         from: liker.name || liker.username,
         senderId: likerId.toString(),
         message: `${liker.name || liker.username} liked your post`,
         postId: postId,
         timestamp: Date.now(),
-        // ✅ ADD sender data with profile image
         sender: {
           _id: likerId.toString(),
           username: liker.username,
           name: liker.name,
           profileImage: liker.profileImage
         }
-      };
+      });
+    }
 
-      io.to(postOwnerId.toString()).emit('new_notification', socketData);
+    // ✅ Send remote push notification
+    if (postOwner?.expoPushToken) {
+      await sendPushNotification(
+        postOwner.expoPushToken,
+        '❤️ New Like',
+        `${liker.name || liker.username} liked your post`,
+        {
+          type: 'post_like',
+          postId: postId,
+          senderId: likerId.toString(),
+        }
+      );
     }
 
     res.status(200).json({
@@ -186,7 +207,8 @@ export const sendLikeNotification = async (req, res) => {
     });
   }
 };
-// ✅ Send comment notification
+
+
 export const sendCommentNotification = async (req, res) => {
   try {
     const { postId, postOwnerId, commentText } = req.body;
@@ -197,6 +219,7 @@ export const sendCommentNotification = async (req, res) => {
     }
 
     const commenter = await User.findById(commenterId).select('name username profileImage');
+    const postOwner = await User.findById(postOwnerId).select('expoPushToken');
 
     const notification = await Notification.create({
       user: postOwnerId,
@@ -212,23 +235,38 @@ export const sendCommentNotification = async (req, res) => {
         ? `${commentText.substring(0, 50)}...`
         : commentText;
 
-      const socketData = {
+      io.to(postOwnerId.toString()).emit('new_notification', {
         type: 'post_comment',
         from: commenter.name || commenter.username,
         senderId: commenterId.toString(),
         message: `${commenter.name || commenter.username} commented: ${preview}`,
         postId: postId,
         timestamp: Date.now(),
-        // ✅ ADD sender data with profile image
         sender: {
           _id: commenterId.toString(),
           username: commenter.username,
           name: commenter.name,
           profileImage: commenter.profileImage
         }
-      };
+      });
+    }
 
-      io.to(postOwnerId.toString()).emit('new_notification', socketData);
+    // ✅ Send remote push notification
+    if (postOwner?.expoPushToken) {
+      const preview = commentText.length > 50
+        ? `${commentText.substring(0, 50)}...`
+        : commentText;
+
+      await sendPushNotification(
+        postOwner.expoPushToken,
+        '💬 New Comment',
+        `${commenter.name || commenter.username} commented: ${preview}`,
+        {
+          type: 'post_comment',
+          postId: postId,
+          senderId: commenterId.toString(),
+        }
+      );
     }
 
     res.status(200).json({
@@ -244,27 +282,19 @@ export const sendCommentNotification = async (req, res) => {
     });
   }
 };
-// export const sendCommentNotification = async (req, res) => {
-//   console.log('\n💬 ========== SEND COMMENT NOTIFICATION ==========');
-//   console.log('📦 Request body:', req.body);
-//   console.log('👤 Commenter ID (from auth):', req.user?._id);
 
+// ✅ Send comment notification
+// export const sendCommentNotification = async (req, res) => {
 //   try {
 //     const { postId, postOwnerId, commentText } = req.body;
 //     const commenterId = req.user._id;
 
-//     // Don't send notification if user comments on their own post
 //     if (commenterId.toString() === postOwnerId.toString()) {
-//       console.log('⚠️ Self-comment detected, skipping notification');
 //       return res.status(200).json({ message: 'Self-comment, no notification sent' });
 //     }
 
-//     console.log('📝 Fetching commenter info...');
-//     const commenter = await User.findById(commenterId).select('name username');
-//     console.log('✅ Commenter:', commenter);
+//     const commenter = await User.findById(commenterId).select('name username profileImage');
 
-//     // Create notification in database
-//     console.log('💾 Creating notification in database...');
 //     const notification = await Notification.create({
 //       user: postOwnerId,
 //       type: 'post_comment',
@@ -272,37 +302,32 @@ export const sendCommentNotification = async (req, res) => {
 //       sender: commenterId,
 //       postId: postId
 //     });
-//     console.log('✅ Notification created:', notification._id);
 
-//     // ✅ Get socket.io instance
 //     const io = req.app.get('io');
-//     if (!io) {
-//       console.error('❌ Socket.io instance not found on app!');
-//       return res.status(500).json({ message: 'Socket.io not configured' });
+//     if (io) {
+//       const preview = commentText.length > 50
+//         ? `${commentText.substring(0, 50)}...`
+//         : commentText;
+
+//       const socketData = {
+//         type: 'post_comment',
+//         from: commenter.name || commenter.username,
+//         senderId: commenterId.toString(),
+//         message: `${commenter.name || commenter.username} commented: ${preview}`,
+//         postId: postId,
+//         timestamp: Date.now(),
+//         // ✅ ADD sender data with profile image
+//         sender: {
+//           _id: commenterId.toString(),
+//           username: commenter.username,
+//           name: commenter.name,
+//           profileImage: commenter.profileImage
+//         }
+//       };
+
+//       io.to(postOwnerId.toString()).emit('new_notification', socketData);
 //     }
 
-//     console.log('📡 Socket.io instance found');
-//     console.log('📤 Emitting to room:', postOwnerId.toString());
-
-//     // ✅ Emit socket event to post owner's room
-//     const preview = commentText.length > 50
-//       ? `${commentText.substring(0, 50)}...`
-//       : commentText;
-
-//     const socketData = {
-//       type: 'post_comment',
-//       from: commenter.name || commenter.username,
-//       senderId: commenterId.toString(),
-//       message: `${commenter.name || commenter.username} commented: ${preview}`,
-//       postId: postId,
-//       timestamp: Date.now()
-//     };
-
-//     console.log('📨 Socket data:', socketData);
-//     io.to(postOwnerId.toString()).emit('new_notification', socketData);
-//     console.log('✅ Socket event emitted successfully');
-
-//     console.log('========================================\n');
 //     res.status(200).json({
 //       success: true,
 //       message: 'Notification sent',
@@ -310,15 +335,12 @@ export const sendCommentNotification = async (req, res) => {
 //     });
 //   } catch (error) {
 //     console.error('❌ Send comment notification error:', error);
-//     console.error('❌ Error stack:', error.stack);
-//     console.log('========================================\n');
 //     res.status(500).json({
 //       success: false,
 //       message: error.message
 //     });
 //   }
 // };
-// Add this to your backend/controller/requestController.js
 
 export const getReceivedAcceptedRequests = async (req, res) => {
   try {
@@ -422,6 +444,75 @@ export const unchose = async (req, res) => {
   }
 };
 // Send bond request
+// export const sendBondRequest = async (req, res) => {
+//   try {
+//     const { recipientId } = req.body;
+//     const senderId = req.user._id;
+
+//     if (!recipientId) {
+//       return res.status(400).json({ message: 'Recipient ID is required' });
+//     }
+
+//     if (senderId.toString() === recipientId.toString()) {
+//       return res.status(400).json({ message: 'Cannot send request to yourself' });
+//     }
+
+//     const existingRequest = await Request.findOne({
+//       sender: senderId,
+//       recipient: recipientId,
+//       type: 'bond',
+//       status: 'pending'
+//     });
+
+//     if (existingRequest) {
+//       return res.status(400).json({ message: 'Request already sent' });
+//     }
+
+//     const user = await User.findById(senderId);
+//     if (user.bonds && user.bonds.includes(recipientId)) {
+//       return res.status(400).json({ message: 'Already bonded with this user' });
+//     }
+
+//     const newRequest = new Request({
+//       sender: senderId,
+//       recipient: recipientId,
+//       type: 'bond',
+//       status: 'pending'
+//     });
+
+//     await newRequest.save();
+
+//     const senderUser = await User.findById(senderId).select('name username profileImage');
+
+//     // ✅ REMOVE database notification - Socket.IO handles it
+//     // await Notification.create(...) ❌ DELETE THIS
+
+//     // ✅ ONLY emit Socket.IO event
+//     const io = req.app.get('io');
+//     if (io) {
+//       io.to(recipientId.toString()).emit('new_request', {
+//         type: 'bond_request',
+//         from: senderUser.name || senderUser.username,
+//         senderId: senderId.toString(),
+//         message: `${senderUser.name || senderUser.username} wants to be your bond`,
+//         requestId: newRequest._id.toString(),
+//         senderProfileImage: senderUser.profileImage || null
+//       });
+//     }
+
+//     res.status(201).json({
+//       success: true,
+//       message: 'Bond request sent successfully',
+//       request: newRequest
+//     });
+//   } catch (error) {
+//     console.error('❌ Send bond request error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message || 'Failed to send bond request'
+//     });
+//   }
+// };
 export const sendBondRequest = async (req, res) => {
   try {
     const { recipientId } = req.body;
@@ -461,11 +552,9 @@ export const sendBondRequest = async (req, res) => {
     await newRequest.save();
 
     const senderUser = await User.findById(senderId).select('name username profileImage');
+    const recipientUser = await User.findById(recipientId).select('expoPushToken'); // ← Get push token
 
-    // ✅ REMOVE database notification - Socket.IO handles it
-    // await Notification.create(...) ❌ DELETE THIS
-
-    // ✅ ONLY emit Socket.IO event
+    // ✅ Emit Socket.IO event (for in-app notification)
     const io = req.app.get('io');
     if (io) {
       io.to(recipientId.toString()).emit('new_request', {
@@ -476,6 +565,20 @@ export const sendBondRequest = async (req, res) => {
         requestId: newRequest._id.toString(),
         senderProfileImage: senderUser.profileImage || null
       });
+    }
+
+    // ✅ Send remote push notification (works when app is closed)
+    if (recipientUser?.expoPushToken) {
+      await sendPushNotification(
+        recipientUser.expoPushToken,
+        '💚 Bond Request',
+        `${senderUser.name || senderUser.username} wants to be your bond`,
+        {
+          type: 'bond_request',
+          requestId: newRequest._id.toString(),
+          senderId: senderId.toString(),
+        }
+      );
     }
 
     res.status(201).json({
@@ -490,8 +593,7 @@ export const sendBondRequest = async (req, res) => {
       message: error.message || 'Failed to send bond request'
     });
   }
-};
-
+}; 
 
 // export const sendBondRequest = async (req, res) => {
 
@@ -613,6 +715,72 @@ export const sendBondRequest = async (req, res) => {
 // };
 
 
+// export const sendSpecialFriendRequest = async (req, res) => {
+//   try {
+//     const { recipientId, image, caption } = req.body;
+//     const senderId = req.user._id;
+
+//     if (!recipientId || !image || !caption?.trim()) {
+//       return res.status(400).json({ message: 'All fields are required' });
+//     }
+
+//     if (senderId.toString() === recipientId.toString()) {
+//       return res.status(400).json({ message: 'Cannot send request to yourself' });
+//     }
+
+//     const existingRequest = await Request.findOne({
+//       sender: senderId,
+//       recipient: recipientId,
+//       type: 'special_friend',
+//       status: 'pending'
+//     });
+
+//     if (existingRequest) {
+//       return res.status(400).json({ message: 'Request already sent' });
+//     }
+
+//     const newRequest = new Request({
+//       sender: senderId,
+//       recipient: recipientId,
+//       type: 'special_friend',
+//       status: 'pending',
+//       image: image,
+//       caption: caption.trim()
+//     });
+
+//     await newRequest.save();
+
+//     const senderUser = await User.findById(senderId).select('name username profileImage');
+
+//     // ✅ REMOVE database notification - Socket.IO handles it
+//     // await Notification.create(...) ❌ DELETE THIS
+
+//     // ✅ ONLY emit Socket.IO event
+//     const io = req.app.get('io');
+//     if (io) {
+//       io.to(recipientId.toString()).emit('new_request', {
+//         type: 'special_friend_request',
+//         from: senderUser.name || senderUser.username,
+//         senderId: senderId.toString(),
+//         message: `${senderUser.name || senderUser.username} wants to be your special friend`,
+//         requestId: newRequest._id.toString(),
+//         senderProfileImage: senderUser.profileImage || null
+//       });
+//     }
+
+//     res.status(201).json({
+//       success: true,
+//       message: 'Special friend request sent successfully',
+//       request: newRequest
+//     });
+//   } catch (error) {
+//     console.error('❌ Send special friend request error:', error);
+//     res.status(500).json({
+//       success: false,
+//       message: error.message || 'Failed to send special friend request'
+//     });
+//   }
+// };
 export const sendSpecialFriendRequest = async (req, res) => {
   try {
     const { recipientId, image, caption } = req.body;
@@ -649,11 +817,8 @@ export const sendSpecialFriendRequest = async (req, res) => {
     await newRequest.save();
 
     const senderUser = await User.findById(senderId).select('name username profileImage');
+    const recipientUser = await User.findById(recipientId).select('expoPushToken');
 
-    // ✅ REMOVE database notification - Socket.IO handles it
-    // await Notification.create(...) ❌ DELETE THIS
-
-    // ✅ ONLY emit Socket.IO event
     const io = req.app.get('io');
     if (io) {
       io.to(recipientId.toString()).emit('new_request', {
@@ -664,6 +829,20 @@ export const sendSpecialFriendRequest = async (req, res) => {
         requestId: newRequest._id.toString(),
         senderProfileImage: senderUser.profileImage || null
       });
+    }
+
+    // ✅ Send remote push notification
+    if (recipientUser?.expoPushToken) {
+      await sendPushNotification(
+        recipientUser.expoPushToken,
+        '⭐ Special Friend Request',
+        `${senderUser.name || senderUser.username} wants to be your special friend`,
+        {
+          type: 'special_friend_request',
+          requestId: newRequest._id.toString(),
+          senderId: senderId.toString(),
+        }
+      );
     }
 
     res.status(201).json({
@@ -679,7 +858,6 @@ export const sendSpecialFriendRequest = async (req, res) => {
     });
   }
 };
-
 
 // export const sendSpecialFriendRequest = async (req, res) => {
 //   console.log('\n🎯 ========== SEND SPECIAL FRIEND REQUEST ==========');
