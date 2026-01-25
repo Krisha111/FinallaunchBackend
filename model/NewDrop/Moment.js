@@ -16,7 +16,7 @@ const momentSchema = new mongoose.Schema(
     // ✅ Either photos OR videos (at least one required)
     photoMomentImages: { type: [String], default: [] },
     videoMomentFiles: { type: [String], default: [] },
-
+  caption: { type: String, default: '' }, 
     type: {
       type: String,
       enum: ['regular'],
