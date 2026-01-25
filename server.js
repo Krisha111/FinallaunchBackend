@@ -13,7 +13,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
-import callRoutes from './routes/Call/CallRoute.js'
+// import callRoutes from './routes/Call/CallRoute.js'
 import requestRoutes from './routes/requestRoutes.js';
 import profileInformationRoutes from './routes/Profile/ProfileInformationRoute.js';
 import verifyToken from './MiddleWare/verifyToken.js';
@@ -214,7 +214,7 @@ app.use(
 
 
 // ✅ Move /api/call BEFORE the root '/' route
-app.use('/api/call', callRoutes);
+// app.use('/api/call', callRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/profile', profileStatsRoutes);
