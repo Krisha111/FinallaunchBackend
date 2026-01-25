@@ -49,10 +49,10 @@ const momentSchema = new mongoose.Schema(
     ],
 
     // ✅ NEW: 24-hour expiration (like Instagram Stories)
-    expiresAt: {
-      type: Date,
-      default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
-    },
+    // expiresAt: {
+    //   type: Date,
+    //   default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours from now
+    // },
 
     savedMoments: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Moment' }],
   },
@@ -69,6 +69,6 @@ momentSchema.pre('save', function(next) {
 });
 
 // ✅ Index for auto-deletion of expired moments
-momentSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+// momentSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model('Moment', momentSchema);

@@ -4,6 +4,10 @@ import jwt from 'jsonwebtoken';
 
 const userSchema = new mongoose.Schema({
   name: { type: String, default: "", trim: true, },
+  expoPushToken: {
+    type: String,
+    default: null
+  },
   pushToken: {
   type: String,
   default: null

@@ -293,7 +293,9 @@ io.on('connection', (socket) => {
 socket.on('get_active_users', () => {
   const activeUsersList = Object.values(userssample);
   socket.emit('active_users', activeUsersList);
-  console.log(`📤 Sent ${activeUsersList.length} active users to ${socket.username || 'unknown'}`);
+
+  console.log(`📤 Sent ${activeUsersList.length}
+     active users to ${socket.username || 'unknown'}`);
 });
 
   socket.on('cancel_invite', ({ to, from }) => {
