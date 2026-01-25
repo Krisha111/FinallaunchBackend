@@ -9,31 +9,7 @@ import User from '../model/User.js';
 
 
 import Notification from '../model/Notification.js';
-// ✅ Add this helper function at the top of requestController.js
-import axios from 'axios';
 
-async function sendPushNotification(expoPushToken, title, body, data = {}) {
-  const message = {
-    to: expoPushToken,
-    sound: 'default',
-    title: title,
-    body: body,
-    data: data,
-    priority: 'high',
-    channelId: 'default',
-  };
-
-  try {
-    await axios.post('https://exp.host/--/api/v2/push/send', message, {
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    console.log('✅ Push notification sent to:', expoPushToken);
-  } catch (error) {
-    console.error('❌ Failed to send push notification:', error.response?.data || error.message);
-  }
-}
 
 // Get requests for a specific user (for viewing other profiles)
 export const getUserRequests = async (req, res) => {
@@ -87,61 +63,6 @@ export const getNotifications = async (req, res) => {
   }
 };
 
-// export const sendLikeNotification = async (req, res) => {
-//   try {
-//     const { postId, postOwnerId } = req.body;
-//     const likerId = req.user._id;
-
-//     if (likerId.toString() === postOwnerId.toString()) {
-//       return res.status(200).json({ message: 'Self-like, no notification sent' });
-//     }
-
-//     const liker = await User.findById(likerId).select('name username profileImage');
-
-//     const notification = await Notification.create({
-//       user: postOwnerId,
-//       type: 'post_like',
-//       message: `${liker.name || liker.username} liked your post`,
-//       sender: likerId,
-//       postId: postId
-//     });
-
-//     const io = req.app.get('io');
-//     if (io) {
-//       const socketData = {
-//         type: 'post_like',
-//         from: liker.name || liker.username,
-//         senderId: likerId.toString(),
-//         message: `${liker.name || liker.username} liked your post`,
-//         postId: postId,
-//         timestamp: Date.now(),
-//         // ✅ ADD sender data with profile image
-//         sender: {
-//           _id: likerId.toString(),
-//           username: liker.username,
-//           name: liker.name,
-//           profileImage: liker.profileImage
-//         }
-//       };
-
-//       io.to(postOwnerId.toString()).emit('new_notification', socketData);
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       message: 'Notification sent',
-//       notificationId: notification._id
-//     });
-//   } catch (error) {
-//     console.error('❌ Send like notification error:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: error.message
-//     });
-//   }
-// };
-
-
 export const sendLikeNotification = async (req, res) => {
   try {
     const { postId, postOwnerId } = req.body;
@@ -152,7 +73,6 @@ export const sendLikeNotification = async (req, res) => {
     }
 
     const liker = await User.findById(likerId).select('name username profileImage');
-    const postOwner = await User.findById(postOwnerId).select('expoPushToken');
 
     const notification = await Notification.create({
       user: postOwnerId,
@@ -164,34 +84,23 @@ export const sendLikeNotification = async (req, res) => {
 
     const io = req.app.get('io');
     if (io) {
-      io.to(postOwnerId.toString()).emit('new_notification', {
+      const socketData = {
         type: 'post_like',
         from: liker.name || liker.username,
         senderId: likerId.toString(),
         message: `${liker.name || liker.username} liked your post`,
         postId: postId,
         timestamp: Date.now(),
+        // ✅ ADD sender data with profile image
         sender: {
           _id: likerId.toString(),
           username: liker.username,
           name: liker.name,
           profileImage: liker.profileImage
         }
-      });
-    }
+      };
 
-    // ✅ Send remote push notification
-    if (postOwner?.expoPushToken) {
-      await sendPushNotification(
-        postOwner.expoPushToken,
-        '❤️ New Like',
-        `${liker.name || liker.username} liked your post`,
-        {
-          type: 'post_like',
-          postId: postId,
-          senderId: likerId.toString(),
-        }
-      );
+      io.to(postOwnerId.toString()).emit('new_notification', socketData);
     }
 
     res.status(200).json({
@@ -209,6 +118,9 @@ export const sendLikeNotification = async (req, res) => {
 };
 
 
+
+
+// ✅ Send comment notification
 export const sendCommentNotification = async (req, res) => {
   try {
     const { postId, postOwnerId, commentText } = req.body;
@@ -219,7 +131,6 @@ export const sendCommentNotification = async (req, res) => {
     }
 
     const commenter = await User.findById(commenterId).select('name username profileImage');
-    const postOwner = await User.findById(postOwnerId).select('expoPushToken');
 
     const notification = await Notification.create({
       user: postOwnerId,
@@ -235,38 +146,23 @@ export const sendCommentNotification = async (req, res) => {
         ? `${commentText.substring(0, 50)}...`
         : commentText;
 
-      io.to(postOwnerId.toString()).emit('new_notification', {
+      const socketData = {
         type: 'post_comment',
         from: commenter.name || commenter.username,
         senderId: commenterId.toString(),
         message: `${commenter.name || commenter.username} commented: ${preview}`,
         postId: postId,
         timestamp: Date.now(),
+        // ✅ ADD sender data with profile image
         sender: {
           _id: commenterId.toString(),
           username: commenter.username,
           name: commenter.name,
           profileImage: commenter.profileImage
         }
-      });
-    }
+      };
 
-    // ✅ Send remote push notification
-    if (postOwner?.expoPushToken) {
-      const preview = commentText.length > 50
-        ? `${commentText.substring(0, 50)}...`
-        : commentText;
-
-      await sendPushNotification(
-        postOwner.expoPushToken,
-        '💬 New Comment',
-        `${commenter.name || commenter.username} commented: ${preview}`,
-        {
-          type: 'post_comment',
-          postId: postId,
-          senderId: commenterId.toString(),
-        }
-      );
+      io.to(postOwnerId.toString()).emit('new_notification', socketData);
     }
 
     res.status(200).json({
@@ -282,65 +178,6 @@ export const sendCommentNotification = async (req, res) => {
     });
   }
 };
-
-// ✅ Send comment notification
-// export const sendCommentNotification = async (req, res) => {
-//   try {
-//     const { postId, postOwnerId, commentText } = req.body;
-//     const commenterId = req.user._id;
-
-//     if (commenterId.toString() === postOwnerId.toString()) {
-//       return res.status(200).json({ message: 'Self-comment, no notification sent' });
-//     }
-
-//     const commenter = await User.findById(commenterId).select('name username profileImage');
-
-//     const notification = await Notification.create({
-//       user: postOwnerId,
-//       type: 'post_comment',
-//       message: `${commenter.name || commenter.username} commented on your post`,
-//       sender: commenterId,
-//       postId: postId
-//     });
-
-//     const io = req.app.get('io');
-//     if (io) {
-//       const preview = commentText.length > 50
-//         ? `${commentText.substring(0, 50)}...`
-//         : commentText;
-
-//       const socketData = {
-//         type: 'post_comment',
-//         from: commenter.name || commenter.username,
-//         senderId: commenterId.toString(),
-//         message: `${commenter.name || commenter.username} commented: ${preview}`,
-//         postId: postId,
-//         timestamp: Date.now(),
-//         // ✅ ADD sender data with profile image
-//         sender: {
-//           _id: commenterId.toString(),
-//           username: commenter.username,
-//           name: commenter.name,
-//           profileImage: commenter.profileImage
-//         }
-//       };
-
-//       io.to(postOwnerId.toString()).emit('new_notification', socketData);
-//     }
-
-//     res.status(200).json({
-//       success: true,
-//       message: 'Notification sent',
-//       notificationId: notification._id
-//     });
-//   } catch (error) {
-//     console.error('❌ Send comment notification error:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: error.message
-//     });
-//   }
-// };
 
 export const getReceivedAcceptedRequests = async (req, res) => {
   try {
@@ -513,19 +350,38 @@ export const unchose = async (req, res) => {
 //     });
 //   }
 // };
+
+
 export const sendBondRequest = async (req, res) => {
+
+
   try {
     const { recipientId } = req.body;
-    const senderId = req.user._id;
 
+    // Check if user is authenticated
+    if (!req.user || !req.user._id) {
+      console.log('❌ User not authenticated');
+      return res.status(401).json({ message: 'User not authenticated' });
+    }
+
+    const senderId = req.user._id;
+    console.log('✅ senderId:', senderId);
+    console.log('✅ recipientId:', recipientId);
+
+    // Validate recipientId
     if (!recipientId) {
+      console.log('❌ Recipient ID is missing');
       return res.status(400).json({ message: 'Recipient ID is required' });
     }
 
+    // Check if trying to send request to self
     if (senderId.toString() === recipientId.toString()) {
+      console.log('❌ Trying to send request to self');
       return res.status(400).json({ message: 'Cannot send request to yourself' });
     }
 
+    console.log('🔍 Checking for existing request...');
+    // Check if request already exists
     const existingRequest = await Request.findOne({
       sender: senderId,
       recipient: recipientId,
@@ -534,14 +390,19 @@ export const sendBondRequest = async (req, res) => {
     });
 
     if (existingRequest) {
+      console.log('⚠️ Request already exists:', existingRequest._id);
       return res.status(400).json({ message: 'Request already sent' });
     }
 
+    console.log('🔍 Checking if already bonded...');
+    // Check if already bonded
     const user = await User.findById(senderId);
     if (user.bonds && user.bonds.includes(recipientId)) {
+      console.log('⚠️ Already bonded with this user');
       return res.status(400).json({ message: 'Already bonded with this user' });
     }
 
+    console.log('✅ Creating new request...');
     const newRequest = new Request({
       sender: senderId,
       recipient: recipientId,
@@ -550,36 +411,48 @@ export const sendBondRequest = async (req, res) => {
     });
 
     await newRequest.save();
+    console.log('✅ Request saved:', newRequest._id);
 
-    const senderUser = await User.findById(senderId).select('name username profileImage');
-    const recipientUser = await User.findById(recipientId).select('expoPushToken'); // ← Get push token
+    // Get sender info for notification
+    const senderUser = await User.findById(senderId).select('name username');
+    console.log('✅ Sender user:', senderUser);
 
-    // ✅ Emit Socket.IO event (for in-app notification)
-    const io = req.app.get('io');
+    console.log('📬 Creating notification...');
+    // Create notification for recipient
+    await Notification.create({
+      user: recipientId,
+      type: 'bond_request',
+      message: `${senderUser.name || senderUser.username} sent you a bond request`,
+      sender: senderId
+    });
+    // ✅ ADD THESE LINES:
+    const io = req.app.get('io'); // Get socket.io instance
     if (io) {
-      io.to(recipientId.toString()).emit('new_request', {
-        type: 'bond_request',
-        from: senderUser.name || senderUser.username,
-        senderId: senderId.toString(),
-        message: `${senderUser.name || senderUser.username} wants to be your bond`,
-        requestId: newRequest._id.toString(),
-        senderProfileImage: senderUser.profileImage || null
-      });
-    }
-
-    // ✅ Send remote push notification (works when app is closed)
-    if (recipientUser?.expoPushToken) {
-      await sendPushNotification(
-        recipientUser.expoPushToken,
-        '💚 Bond Request',
-        `${senderUser.name || senderUser.username} wants to be your bond`,
-        {
+      if (io) {
+        const socketData = {
           type: 'bond_request',
-          requestId: newRequest._id.toString(),
+          from: senderUser.name || senderUser.username,
           senderId: senderId.toString(),
-        }
-      );
+          message: `${senderUser.name || senderUser.username} sent you a bond request`,
+          requestId: newRequest._id.toString(),
+          // ✅ ADD sender profile image
+          senderProfileImage: senderUser.profileImage || null // ✅ ADD unique ID
+        };
+
+        console.log("📤 Emitting new_request to:", recipientId.toString());
+        io.to(recipientId.toString()).emit('new_request', socketData);
+      }
+      // io.to(recipientId.toString()).emit('new_request', {
+      //   type: 'bond_request',
+      //   from: senderUser.name || senderUser.username,
+      //   senderId: senderId.toString(),
+      //   message: `${senderUser.name || senderUser.username} sent you a bond request`
+      // });
     }
+    console.log('✅ Notification created');
+
+    console.log('✅ Bond request sent successfully');
+    console.log('========================================\n');
 
     res.status(201).json({
       success: true,
@@ -588,131 +461,15 @@ export const sendBondRequest = async (req, res) => {
     });
   } catch (error) {
     console.error('❌ Send bond request error:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.log('========================================\n');
+
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to send bond request'
     });
   }
-}; 
-
-// export const sendBondRequest = async (req, res) => {
-
-
-//   try {
-//     const { recipientId } = req.body;
-
-//     // Check if user is authenticated
-//     if (!req.user || !req.user._id) {
-//       console.log('❌ User not authenticated');
-//       return res.status(401).json({ message: 'User not authenticated' });
-//     }
-
-//     const senderId = req.user._id;
-//     console.log('✅ senderId:', senderId);
-//     console.log('✅ recipientId:', recipientId);
-
-//     // Validate recipientId
-//     if (!recipientId) {
-//       console.log('❌ Recipient ID is missing');
-//       return res.status(400).json({ message: 'Recipient ID is required' });
-//     }
-
-//     // Check if trying to send request to self
-//     if (senderId.toString() === recipientId.toString()) {
-//       console.log('❌ Trying to send request to self');
-//       return res.status(400).json({ message: 'Cannot send request to yourself' });
-//     }
-
-//     console.log('🔍 Checking for existing request...');
-//     // Check if request already exists
-//     const existingRequest = await Request.findOne({
-//       sender: senderId,
-//       recipient: recipientId,
-//       type: 'bond',
-//       status: 'pending'
-//     });
-
-//     if (existingRequest) {
-//       console.log('⚠️ Request already exists:', existingRequest._id);
-//       return res.status(400).json({ message: 'Request already sent' });
-//     }
-
-//     console.log('🔍 Checking if already bonded...');
-//     // Check if already bonded
-//     const user = await User.findById(senderId);
-//     if (user.bonds && user.bonds.includes(recipientId)) {
-//       console.log('⚠️ Already bonded with this user');
-//       return res.status(400).json({ message: 'Already bonded with this user' });
-//     }
-
-//     console.log('✅ Creating new request...');
-//     const newRequest = new Request({
-//       sender: senderId,
-//       recipient: recipientId,
-//       type: 'bond',
-//       status: 'pending'
-//     });
-
-//     await newRequest.save();
-//     console.log('✅ Request saved:', newRequest._id);
-
-//     // Get sender info for notification
-//     const senderUser = await User.findById(senderId).select('name username');
-//     console.log('✅ Sender user:', senderUser);
-
-//     console.log('📬 Creating notification...');
-//     // Create notification for recipient
-//     await Notification.create({
-//       user: recipientId,
-//       type: 'bond_request',
-//       message: `${senderUser.name || senderUser.username} sent you a bond request`,
-//       sender: senderId
-//     });
-//     // ✅ ADD THESE LINES:
-//     const io = req.app.get('io'); // Get socket.io instance
-//     if (io) {
-//       if (io) {
-//         const socketData = {
-//           type: 'bond_request',
-//           from: senderUser.name || senderUser.username,
-//           senderId: senderId.toString(),
-//           message: `${senderUser.name || senderUser.username} sent you a bond request`,
-//           requestId: newRequest._id.toString(),
-//           // ✅ ADD sender profile image
-//           senderProfileImage: senderUser.profileImage || null // ✅ ADD unique ID
-//         };
-
-//         console.log("📤 Emitting new_request to:", recipientId.toString());
-//         io.to(recipientId.toString()).emit('new_request', socketData);
-//       }
-//       // io.to(recipientId.toString()).emit('new_request', {
-//       //   type: 'bond_request',
-//       //   from: senderUser.name || senderUser.username,
-//       //   senderId: senderId.toString(),
-//       //   message: `${senderUser.name || senderUser.username} sent you a bond request`
-//       // });
-//     }
-//     console.log('✅ Notification created');
-
-//     console.log('✅ Bond request sent successfully');
-//     console.log('========================================\n');
-
-//     res.status(201).json({
-//       success: true,
-//       message: 'Bond request sent successfully',
-//       request: newRequest
-//     });
-//   } catch (error) {
-//     console.error('❌ Send bond request error:', error);
-//     console.error('❌ Error stack:', error.stack);
-//     console.log('========================================\n');
-
-//     res.status(500).json({
-//       success: false,
-//       message: error.message || 'Failed to send bond request'
-//     });
-//   }
-// };
+};
 
 
 // export const sendSpecialFriendRequest = async (req, res) => {
@@ -781,19 +538,55 @@ export const sendBondRequest = async (req, res) => {
 //     });
 //   }
 // };
+
+
 export const sendSpecialFriendRequest = async (req, res) => {
+  console.log('\n🎯 ========== SEND SPECIAL FRIEND REQUEST ==========');
+  console.log('📦 req.body keys:', Object.keys(req.body));
+  console.log('👤 req.user:', req.user ? { id: req.user._id, username: req.user.username } : 'NO USER');
+
   try {
     const { recipientId, image, caption } = req.body;
-    const senderId = req.user._id;
 
-    if (!recipientId || !image || !caption?.trim()) {
-      return res.status(400).json({ message: 'All fields are required' });
+    // Check if user is authenticated
+    if (!req.user || !req.user._id) {
+      console.log('❌ User not authenticated');
+      return res.status(401).json({ message: 'User not authenticated' });
     }
 
-    if (senderId.toString() === recipientId.toString()) {
+    const senderId = req.user._id;
+    console.log('✅ senderId:', senderId);
+    console.log('✅ recipientId:', recipientId);
+    console.log('✅ caption length:', caption?.length || 0);
+    console.log('✅ image length:', image?.length || 0);
+
+    // Validate required fields
+    if (!recipientId) {
+      console.log('❌ Recipient ID is missing');
+      return res.status(400).json({ message: 'Recipient ID is required' });
+    }
+
+    if (!image) {
+      console.log('❌ Image is missing');
+      return res.status(400).json({ message: 'Image is required for special friend request' });
+    }
+
+    if (!caption || caption.trim().length === 0) {
+      console.log('❌ Caption is missing or empty');
+      return res.status(400).json({ message: 'Caption is required for special friend request' });
+    }
+
+    if (caption.length > 500) {
+      console.log('❌ Caption too long:', caption.length);
+      return res.status(400).json({ message: 'Caption must be 500 characters or less' });
+    }
+
+    // Check if trying to send request to self
+    if (senderId.toString() === recipientId) {
       return res.status(400).json({ message: 'Cannot send request to yourself' });
     }
 
+    // Check if request already exists
     const existingRequest = await Request.findOne({
       sender: senderId,
       recipient: recipientId,
@@ -805,6 +598,13 @@ export const sendSpecialFriendRequest = async (req, res) => {
       return res.status(400).json({ message: 'Request already sent' });
     }
 
+    // Check if already in chosen list
+    const user = await User.findById(senderId);
+    if (user.chosen && user.chosen.includes(recipientId)) {
+      return res.status(400).json({ message: 'Already in special friends list' });
+    }
+
+    // Create new request with image and caption
     const newRequest = new Request({
       sender: senderId,
       recipient: recipientId,
@@ -816,33 +616,29 @@ export const sendSpecialFriendRequest = async (req, res) => {
 
     await newRequest.save();
 
-    const senderUser = await User.findById(senderId).select('name username profileImage');
-    const recipientUser = await User.findById(recipientId).select('expoPushToken');
+    const senderUser = await User.findById(senderId).select('name username');
+
+    await Notification.create({
+      user: recipientId,
+      type: 'special_friend_request',
+      message: `${senderUser.name || senderUser.username} sent you a special friend request`,
+      sender: senderId,
+      requestId: newRequest._id // ✅ Store request ID in notification
+    });
 
     const io = req.app.get('io');
     if (io) {
-      io.to(recipientId.toString()).emit('new_request', {
+      const socketData = {
         type: 'special_friend_request',
         from: senderUser.name || senderUser.username,
         senderId: senderId.toString(),
-        message: `${senderUser.name || senderUser.username} wants to be your special friend`,
+        message: `${senderUser.name || senderUser.username} sent you a special friend request`,
         requestId: newRequest._id.toString(),
+        // ✅ ADD sender profile image
         senderProfileImage: senderUser.profileImage || null
-      });
-    }
+      };
 
-    // ✅ Send remote push notification
-    if (recipientUser?.expoPushToken) {
-      await sendPushNotification(
-        recipientUser.expoPushToken,
-        '⭐ Special Friend Request',
-        `${senderUser.name || senderUser.username} wants to be your special friend`,
-        {
-          type: 'special_friend_request',
-          requestId: newRequest._id.toString(),
-          senderId: senderId.toString(),
-        }
-      );
+      io.to(recipientId.toString()).emit('new_request', socketData);
     }
 
     res.status(201).json({
@@ -850,6 +646,7 @@ export const sendSpecialFriendRequest = async (req, res) => {
       message: 'Special friend request sent successfully',
       request: newRequest
     });
+
   } catch (error) {
     console.error('❌ Send special friend request error:', error);
     res.status(500).json({
@@ -858,122 +655,6 @@ export const sendSpecialFriendRequest = async (req, res) => {
     });
   }
 };
-
-// export const sendSpecialFriendRequest = async (req, res) => {
-//   console.log('\n🎯 ========== SEND SPECIAL FRIEND REQUEST ==========');
-//   console.log('📦 req.body keys:', Object.keys(req.body));
-//   console.log('👤 req.user:', req.user ? { id: req.user._id, username: req.user.username } : 'NO USER');
-
-//   try {
-//     const { recipientId, image, caption } = req.body;
-
-//     // Check if user is authenticated
-//     if (!req.user || !req.user._id) {
-//       console.log('❌ User not authenticated');
-//       return res.status(401).json({ message: 'User not authenticated' });
-//     }
-
-//     const senderId = req.user._id;
-//     console.log('✅ senderId:', senderId);
-//     console.log('✅ recipientId:', recipientId);
-//     console.log('✅ caption length:', caption?.length || 0);
-//     console.log('✅ image length:', image?.length || 0);
-
-//     // Validate required fields
-//     if (!recipientId) {
-//       console.log('❌ Recipient ID is missing');
-//       return res.status(400).json({ message: 'Recipient ID is required' });
-//     }
-
-//     if (!image) {
-//       console.log('❌ Image is missing');
-//       return res.status(400).json({ message: 'Image is required for special friend request' });
-//     }
-
-//     if (!caption || caption.trim().length === 0) {
-//       console.log('❌ Caption is missing or empty');
-//       return res.status(400).json({ message: 'Caption is required for special friend request' });
-//     }
-
-//     if (caption.length > 500) {
-//       console.log('❌ Caption too long:', caption.length);
-//       return res.status(400).json({ message: 'Caption must be 500 characters or less' });
-//     }
-
-//     // Check if trying to send request to self
-//     if (senderId.toString() === recipientId) {
-//       return res.status(400).json({ message: 'Cannot send request to yourself' });
-//     }
-
-//     // Check if request already exists
-//     const existingRequest = await Request.findOne({
-//       sender: senderId,
-//       recipient: recipientId,
-//       type: 'special_friend',
-//       status: 'pending'
-//     });
-
-//     if (existingRequest) {
-//       return res.status(400).json({ message: 'Request already sent' });
-//     }
-
-//     // Check if already in chosen list
-//     const user = await User.findById(senderId);
-//     if (user.chosen && user.chosen.includes(recipientId)) {
-//       return res.status(400).json({ message: 'Already in special friends list' });
-//     }
-
-//     // Create new request with image and caption
-//     const newRequest = new Request({
-//       sender: senderId,
-//       recipient: recipientId,
-//       type: 'special_friend',
-//       status: 'pending',
-//       image: image,
-//       caption: caption.trim()
-//     });
-
-//     await newRequest.save();
-
-//     const senderUser = await User.findById(senderId).select('name username');
-
-//     await Notification.create({
-//       user: recipientId,
-//       type: 'special_friend_request',
-//       message: `${senderUser.name || senderUser.username} sent you a special friend request`,
-//       sender: senderId,
-//       requestId: newRequest._id // ✅ Store request ID in notification
-//     });
-
-//     const io = req.app.get('io');
-//     if (io) {
-//       const socketData = {
-//         type: 'special_friend_request',
-//         from: senderUser.name || senderUser.username,
-//         senderId: senderId.toString(),
-//         message: `${senderUser.name || senderUser.username} sent you a special friend request`,
-//         requestId: newRequest._id.toString(),
-//         // ✅ ADD sender profile image
-//         senderProfileImage: senderUser.profileImage || null
-//       };
-
-//       io.to(recipientId.toString()).emit('new_request', socketData);
-//     }
-
-//     res.status(201).json({
-//       success: true,
-//       message: 'Special friend request sent successfully',
-//       request: newRequest
-//     });
-
-//   } catch (error) {
-//     console.error('❌ Send special friend request error:', error);
-//     res.status(500).json({
-//       success: false,
-//       message: error.message || 'Failed to send special friend request'
-//     });
-//   }
-// };
 
 // ✅ NEW: Get full request details (for viewing image and caption)
 export const getRequestDetails = async (req, res) => {
