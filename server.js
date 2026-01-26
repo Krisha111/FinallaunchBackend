@@ -800,116 +800,116 @@ socket.on('register', async ({ username, userId }) => {
     }
   });
 
-
-// socket.on('send_message', ({ room, to, from, message, chatId, toUserId, fromUserId }) => {
-//   console.log(`💬 Socket Message from ${from} to ${to}`);
-//   console.log(`📋 Message: "${message?.substring(0, 50)}"`);
-//   console.log(`📋 UserIds: ${fromUserId} → ${toUserId}`);
+//-------------here-------------
+socket.on('send_message', ({ room, to, from, message, chatId, toUserId, fromUserId }) => {
+  console.log(`💬 Socket Message from ${from} to ${to}`);
+  console.log(`📋 Message: "${message?.substring(0, 50)}"`);
+  console.log(`📋 UserIds: ${fromUserId} → ${toUserId}`);
   
-//   // ✅ Emit to recipient
-//   const recipientSocketId = userSockets.get(toUserId?.toString());
-//   if (recipientSocketId) {
-//     io.to(recipientSocketId).emit('receive_message', {
-//       from,
-//       to,
-//       message,
-//       chatId,
-//       timestamp: new Date().toISOString(),
-//     });
-//     console.log(`✅ Message sent to recipient socket: ${recipientSocketId}`);
-//   } else {
-//     console.log(`⚠️ Recipient ${to} (${toUserId}) not connected`);
-//   }
+  // ✅ Emit to recipient
+  const recipientSocketId = userSockets.get(toUserId?.toString());
+  if (recipientSocketId) {
+    io.to(recipientSocketId).emit('receive_message', {
+      from,
+      to,
+      message,
+      chatId,
+      timestamp: new Date().toISOString(),
+    });
+    console.log(`✅ Message sent to recipient socket: ${recipientSocketId}`);
+  } else {
+    console.log(`⚠️ Recipient ${to} (${toUserId}) not connected`);
+  }
   
-//   // ✅ ALSO emit to sender (for multi-device sync)
-//   const senderSocketId = userSockets.get(fromUserId?.toString());
-//   if (senderSocketId && senderSocketId !== socket.id) {
-//     io.to(senderSocketId).emit('receive_message', {
-//       from,
-//       to,
-//       message,
-//       chatId,
-//       timestamp: new Date().toISOString(),
-//     });
-//     console.log(`✅ Message echoed to sender's other devices`);
-//   }
+  // ✅ ALSO emit to sender (for multi-device sync)
+  const senderSocketId = userSockets.get(fromUserId?.toString());
+  if (senderSocketId && senderSocketId !== socket.id) {
+    io.to(senderSocketId).emit('receive_message', {
+      from,
+      to,
+      message,
+      chatId,
+      timestamp: new Date().toISOString(),
+    });
+    console.log(`✅ Message echoed to sender's other devices`);
+  }
   
-//   // ✅ Emit chat list updates using userId rooms
-//   if (fromUserId) {
-//     io.to(fromUserId.toString()).emit('chat_list_update', { chatId });
-//   }
-//   if (toUserId) {
-//     io.to(toUserId.toString()).emit('chat_list_update', { chatId });
-//     // ✅ Also emit specific event for new messages
-//     io.to(toUserId.toString()).emit('new_chat_message', { 
-//       chatId, 
-//       from, 
-//       message: message?.substring(0, 100) 
-//     });
-//   }
-// });
+  // ✅ Emit chat list updates using userId rooms
+  if (fromUserId) {
+    io.to(fromUserId.toString()).emit('chat_list_update', { chatId });
+  }
+  if (toUserId) {
+    io.to(toUserId.toString()).emit('chat_list_update', { chatId });
+    // ✅ Also emit specific event for new messages
+    io.to(toUserId.toString()).emit('new_chat_message', { 
+      chatId, 
+      from, 
+      message: message?.substring(0, 100) 
+    });
+  }
+});
 
-//   // ================================
-//   // ✅ SYNC REEL INDEX
-//   // ================================
-//   socket.on('sync_reel_index', ({ room, index }) => {
-//     // ✅ Allow anyone to sync, not just admin
-//     if (roomStates[room]) {
-//       roomStates[room].currentIndex = index;
-//     } else {
-//       roomStates[room] = { currentIndex: index, isPlaying: true };
-//     }
-//     console.log(
-//       `🔄 ${socket.username} synced reel index to ${index} in room ${room}`
-//     );
-//     // ✅ Broadcast to everyone in room including sender
-//     io.to(room).emit('sync_reel_index', { index });
-//   });
+  // ================================
+  // ✅ SYNC REEL INDEX
+  // ================================
+  socket.on('sync_reel_index', ({ room, index }) => {
+    // ✅ Allow anyone to sync, not just admin
+    if (roomStates[room]) {
+      roomStates[room].currentIndex = index;
+    } else {
+      roomStates[room] = { currentIndex: index, isPlaying: true };
+    }
+    console.log(
+      `🔄 ${socket.username} synced reel index to ${index} in room ${room}`
+    );
+    // ✅ Broadcast to everyone in room including sender
+    io.to(room).emit('sync_reel_index', { index });
+  });
 
-//   // ================================
-//   // ✅ SEND ACTIVITY
-//   // ================================
-//   socket.on('send_activity', ({ room, activity, username }) => {
-//     console.log(`📊 Activity in ${room}: ${username} - ${activity}`);
-//     socket.to(room).emit('user_activity', { activity, username });
-//   });
+  // ================================
+  // ✅ SEND ACTIVITY
+  // ================================
+  socket.on('send_activity', ({ room, activity, username }) => {
+    console.log(`📊 Activity in ${room}: ${username} - ${activity}`);
+    socket.to(room).emit('user_activity', { activity, username });
+  });
 
-//   // ================================
-//   // ✅ REEL PLAY STATE
-//   // ================================
-//   socket.on('reel_play', ({ room, index, isPlaying }) => {
-//     // ✅ Allow anyone to control play state, not just admin
-//     if (roomStates[room]) {
-//       roomStates[room].currentIndex = index;
-//       roomStates[room].isPlaying = isPlaying;
-//     } else {
-//       roomStates[room] = { currentIndex: index, isPlaying };
-//     }
-//     console.log(
-//       `▶️ ${socket.username} set play state: index=${index}, isPlaying=${isPlaying} in room ${room}`
-//     );
-//     // ✅ Broadcast to everyone in room including sender
-//     io.to(room).emit('reel_play_state', { index, isPlaying });
-//   });
-//   // Add this new event handler in your socket configuration
-//   socket.on('request_room_reel_order', ({ room }, callback) => {
-//     console.log(`📋 Room ${room} requesting reel order`);
+  // ================================
+  // ✅ REEL PLAY STATE
+  // ================================
+  socket.on('reel_play', ({ room, index, isPlaying }) => {
+    // ✅ Allow anyone to control play state, not just admin
+    if (roomStates[room]) {
+      roomStates[room].currentIndex = index;
+      roomStates[room].isPlaying = isPlaying;
+    } else {
+      roomStates[room] = { currentIndex: index, isPlaying };
+    }
+    console.log(
+      `▶️ ${socket.username} set play state: index=${index}, isPlaying=${isPlaying} in room ${room}`
+    );
+    // ✅ Broadcast to everyone in room including sender
+    io.to(room).emit('reel_play_state', { index, isPlaying });
+  });
+  // Add this new event handler in your socket configuration
+  socket.on('request_room_reel_order', ({ room }, callback) => {
+    console.log(`📋 Room ${room} requesting reel order`);
 
-//     // Check if this room already has a reel order stored
-//     if (!global.roomReelOrders) {
-//       global.roomReelOrders = {};
-//     }
+    // Check if this room already has a reel order stored
+    if (!global.roomReelOrders) {
+      global.roomReelOrders = {};
+    }
 
-//     if (global.roomReelOrders[room]) {
-//       // Return existing order for this room
-//       callback({ reelOrder: global.roomReelOrders[room] });
-//     } else {
-//       // No order exists yet, admin will create it
-//       callback({ reelOrder: null });
-//     }
-//   });
+    if (global.roomReelOrders[room]) {
+      // Return existing order for this room
+      callback({ reelOrder: global.roomReelOrders[room] });
+    } else {
+      // No order exists yet, admin will create it
+      callback({ reelOrder: null });
+    }
+  });
 
-
+//-------------here-------------
 
 socket.on('send_message', ({ room, message, sender, from }) => {
   console.log(`💬 Message in room ${room} from ${sender || from}`);
