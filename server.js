@@ -671,20 +671,20 @@ socket.on('register', async ({ username, userId }) => {
 
 
   
-  // socket.on('send-notification', (data) => {
-  //   const { receiverId } = data;
+  socket.on('send-notification', (data) => {
+    const { receiverId } = data;
 
-  //   // Use userSockets instead of onlineUsers
-  //   const receiverSocket = userSockets.get(receiverId?.toString());
+    // Use userSockets instead of onlineUsers
+    const receiverSocket = userSockets.get(receiverId?.toString());
 
-  //   if (receiverSocket) {
-  //     // Emit to specific socket only ONCE
-  //     io.to(receiverSocket).emit('new_notification', data);
-  //     console.log(`🔔 Notification sent to ${receiverId}`);
-  //   } else {
-  //     console.log(`⚠️ Receiver ${receiverId} not connected`);
-  //   }
-  // });
+    if (receiverSocket) {
+      // Emit to specific socket only ONCE
+      io.to(receiverSocket).emit('new_notification', data);
+      console.log(`🔔 Notification sent to ${receiverId}`);
+    } else {
+      console.log(`⚠️ Receiver ${receiverId} not connected`);
+    }
+  });
   socket.on('change_reel', ({ room, reelUrl }) => {
     io.to(room).emit('reel_updated', { reelUrl });
     console.log(`🎬 Reel changed in room ${room}`);
