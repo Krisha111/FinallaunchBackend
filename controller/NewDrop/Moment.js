@@ -160,7 +160,7 @@ export const createMomentPost = async (req, res) => {
   try {
     const momentPhotos = req.files?.momentPhotos || [];
     const momentVideos = req.files?.momentVideos || [];
-
+const { momentCaption } = req.body; // ✅ ADD THIS LINE
     if (momentPhotos.length === 0 && momentVideos.length === 0) {
       return res.status(400).json({ 
         message: "At least one photo or video is required for a moment" 
@@ -174,6 +174,7 @@ export const createMomentPost = async (req, res) => {
       user: req.user._id,
       photoMomentImages,
       videoMomentFiles,
+         caption: momentCaption || '', 
       type: "regular"
     });
 

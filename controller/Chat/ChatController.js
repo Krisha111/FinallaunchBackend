@@ -119,6 +119,50 @@ export const sendMessage = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+
+// export const getNewChats = async (req, res) => {
+//   try {
+//     const userId = req.user._id;
+    
+//     const chats = await Chat.find({
+//       participants: userId,
+//       lastMessage: { $ne: '' }
+//     })
+//     .populate('participants', '_id username profileImage bio')
+//     .populate('lastMessageSender', '_id username')
+//     .sort({ lastMessageTime: -1 });
+    
+//     const formattedChats = chats
+//       .filter(chat => {
+//         const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
+//         return unreadCount > 0;
+//       })
+//       .map(chat => {
+//         const otherUser = chat.participants.find(
+//           p => p._id.toString() !== userId.toString()
+//         );
+        
+//         const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
+        
+//         return {
+//           _id: chat._id,
+//           otherUser,
+//           lastMessage: {
+//             text: chat.lastMessage,
+//             timestamp: chat.lastMessageTime,
+//           },
+//           unreadCount,
+//         };
+//       });
+    
+//     res.json(formattedChats);
+//   } catch (error) {
+//     res.status(500).json({ message: error.message });
+//   }
+// };
+
+
 export const getNewChats = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -134,7 +178,10 @@ export const getNewChats = async (req, res) => {
     const formattedChats = chats
       .filter(chat => {
         const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
-        return unreadCount > 0;
+        const isOpenedByMe = chat.isOpenedBy.some(id => id.toString() === userId.toString());
+        
+        // ✅ FIX: New chat = has messages AND user hasn't opened it yet
+        return !isOpenedByMe && unreadCount > 0;
       })
       .map(chat => {
         const otherUser = chat.participants.find(
@@ -154,11 +201,16 @@ export const getNewChats = async (req, res) => {
         };
       });
     
+    console.log(`📊 New chats for user ${userId}:`, formattedChats.length);
     res.json(formattedChats);
   } catch (error) {
+    console.error('Error in getNewChats:', error);
     res.status(500).json({ message: error.message });
   }
 };
+
+
+
 export const markChatAsOpened = async (req, res) => {
   try {
     const { otherUserId } = req.body;
@@ -199,7 +251,8 @@ export const markChatAsOpened = async (req, res) => {
 //     const userId = req.user._id;
     
 //     const chats = await Chat.find({
-//       participants: userId
+//       participants: userId,
+//       lastMessage: { $exists: true, $ne: '' } // Only return chats with messages
 //     })
 //     .populate('participants', '_id username profileImage bio')
 //     .populate('lastMessageSender', '_id username')
@@ -211,8 +264,9 @@ export const markChatAsOpened = async (req, res) => {
 //       );
       
 //       const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
-//       const hasMessages = chat.lastMessage && chat.lastMessage.length > 0;
 //       const isOpenedByMe = chat.isOpenedBy.some(id => id.toString() === userId.toString());
+      
+//       console.log(`Chat ${chat._id}: unread=${unreadCount}, opened=${isOpenedByMe}`); // Debug log
       
 //       return {
 //         _id: chat._id,
@@ -222,9 +276,8 @@ export const markChatAsOpened = async (req, res) => {
 //           timestamp: chat.lastMessageTime,
 //           sender: chat.lastMessageSender?._id,
 //         },
-//         hasMessages,
 //         unreadCount,
-//         isOpenedBy: isOpenedByMe, // Fixed to return boolean instead of array check
+//         isOpenedBy: isOpenedByMe, // ✅ This returns boolean correctly
 //       };
 //     });
     
@@ -234,13 +287,14 @@ export const markChatAsOpened = async (req, res) => {
 //   }
 // };
 
+
 export const getMyChats = async (req, res) => {
   try {
     const userId = req.user._id;
     
     const chats = await Chat.find({
       participants: userId,
-      lastMessage: { $exists: true, $ne: '' } // Only return chats with messages
+      lastMessage: { $exists: true, $ne: '' }
     })
     .populate('participants', '_id username profileImage bio')
     .populate('lastMessageSender', '_id username')
@@ -254,7 +308,7 @@ export const getMyChats = async (req, res) => {
       const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
       const isOpenedByMe = chat.isOpenedBy.some(id => id.toString() === userId.toString());
       
-      console.log(`Chat ${chat._id}: unread=${unreadCount}, opened=${isOpenedByMe}`); // Debug log
+      console.log(`Chat ${chat._id}: unread=${unreadCount}, opened=${isOpenedByMe}, otherUser=${otherUser?.username}`);
       
       return {
         _id: chat._id,
@@ -265,12 +319,14 @@ export const getMyChats = async (req, res) => {
           sender: chat.lastMessageSender?._id,
         },
         unreadCount,
-        isOpenedBy: isOpenedByMe, // ✅ This returns boolean correctly
+        isOpenedBy: isOpenedByMe,
       };
     });
     
+    console.log(`📊 Total chats: ${formattedChats.length}, User: ${userId}`);
     res.json(formattedChats);
   } catch (error) {
+    console.error('Error in getMyChats:', error);
     res.status(500).json({ message: error.message });
   }
 };

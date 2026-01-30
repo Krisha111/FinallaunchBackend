@@ -280,7 +280,6 @@ export const unchose = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-// Send bond request
 export const sendBondRequest = async (req, res) => {
   try {
     const { recipientId } = req.body;
@@ -321,10 +320,7 @@ export const sendBondRequest = async (req, res) => {
 
     const senderUser = await User.findById(senderId).select('name username profileImage');
 
-    // ✅ REMOVE database notification - Socket.IO handles it
-    // await Notification.create(...) ❌ DELETE THIS
-
-    // ✅ ONLY emit Socket.IO event
+    // ✅ ONLY emit Socket.IO event (NO database notification)
     const io = req.app.get('io');
     if (io) {
       io.to(recipientId.toString()).emit('new_request', {
@@ -539,54 +535,19 @@ export const sendBondRequest = async (req, res) => {
 //   }
 // };
 
-
 export const sendSpecialFriendRequest = async (req, res) => {
-  console.log('\n🎯 ========== SEND SPECIAL FRIEND REQUEST ==========');
-  console.log('📦 req.body keys:', Object.keys(req.body));
-  console.log('👤 req.user:', req.user ? { id: req.user._id, username: req.user.username } : 'NO USER');
-
   try {
     const { recipientId, image, caption } = req.body;
-
-    // Check if user is authenticated
-    if (!req.user || !req.user._id) {
-      console.log('❌ User not authenticated');
-      return res.status(401).json({ message: 'User not authenticated' });
-    }
-
     const senderId = req.user._id;
-    console.log('✅ senderId:', senderId);
-    console.log('✅ recipientId:', recipientId);
-    console.log('✅ caption length:', caption?.length || 0);
-    console.log('✅ image length:', image?.length || 0);
 
-    // Validate required fields
-    if (!recipientId) {
-      console.log('❌ Recipient ID is missing');
-      return res.status(400).json({ message: 'Recipient ID is required' });
+    if (!recipientId || !image || !caption?.trim()) {
+      return res.status(400).json({ message: 'All fields are required' });
     }
 
-    if (!image) {
-      console.log('❌ Image is missing');
-      return res.status(400).json({ message: 'Image is required for special friend request' });
-    }
-
-    if (!caption || caption.trim().length === 0) {
-      console.log('❌ Caption is missing or empty');
-      return res.status(400).json({ message: 'Caption is required for special friend request' });
-    }
-
-    if (caption.length > 500) {
-      console.log('❌ Caption too long:', caption.length);
-      return res.status(400).json({ message: 'Caption must be 500 characters or less' });
-    }
-
-    // Check if trying to send request to self
-    if (senderId.toString() === recipientId) {
+    if (senderId.toString() === recipientId.toString()) {
       return res.status(400).json({ message: 'Cannot send request to yourself' });
     }
 
-    // Check if request already exists
     const existingRequest = await Request.findOne({
       sender: senderId,
       recipient: recipientId,
@@ -598,13 +559,6 @@ export const sendSpecialFriendRequest = async (req, res) => {
       return res.status(400).json({ message: 'Request already sent' });
     }
 
-    // Check if already in chosen list
-    const user = await User.findById(senderId);
-    if (user.chosen && user.chosen.includes(recipientId)) {
-      return res.status(400).json({ message: 'Already in special friends list' });
-    }
-
-    // Create new request with image and caption
     const newRequest = new Request({
       sender: senderId,
       recipient: recipientId,
@@ -616,29 +570,19 @@ export const sendSpecialFriendRequest = async (req, res) => {
 
     await newRequest.save();
 
-    const senderUser = await User.findById(senderId).select('name username');
+    const senderUser = await User.findById(senderId).select('name username profileImage');
 
-    await Notification.create({
-      user: recipientId,
-      type: 'special_friend_request',
-      message: `${senderUser.name || senderUser.username} sent you a special friend request`,
-      sender: senderId,
-      requestId: newRequest._id // ✅ Store request ID in notification
-    });
-
+    // ✅ ONLY emit Socket.IO event (NO database notification)
     const io = req.app.get('io');
     if (io) {
-      const socketData = {
+      io.to(recipientId.toString()).emit('new_request', {
         type: 'special_friend_request',
         from: senderUser.name || senderUser.username,
         senderId: senderId.toString(),
-        message: `${senderUser.name || senderUser.username} sent you a special friend request`,
+        message: `${senderUser.name || senderUser.username} wants to be your special friend`,
         requestId: newRequest._id.toString(),
-        // ✅ ADD sender profile image
         senderProfileImage: senderUser.profileImage || null
-      };
-
-      io.to(recipientId.toString()).emit('new_request', socketData);
+      });
     }
 
     res.status(201).json({
@@ -646,7 +590,6 @@ export const sendSpecialFriendRequest = async (req, res) => {
       message: 'Special friend request sent successfully',
       request: newRequest
     });
-
   } catch (error) {
     console.error('❌ Send special friend request error:', error);
     res.status(500).json({
@@ -655,6 +598,8 @@ export const sendSpecialFriendRequest = async (req, res) => {
     });
   }
 };
+
+
 
 // ✅ NEW: Get full request details (for viewing image and caption)
 export const getRequestDetails = async (req, res) => {
