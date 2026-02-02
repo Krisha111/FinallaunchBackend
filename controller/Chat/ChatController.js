@@ -166,25 +166,29 @@ export const sendMessage = async (req, res) => {
 //     res.status(500).json({ message: error.message });
 //   }
 // };
-
 export const getNewChats = async (req, res) => {
   try {
     const userId = req.user._id;
 
+    // Fetch all chats where user is a participant
     const chats = await Chat.find({
       participants: userId,
-      isOpenedBy: { $nin: [userId] }, // ✅ DB-level filter: only chats I haven't opened
-      unreadCount: { [`${userId}`]: { $gt: 0 } } // ✅ has unread for me
+      lastMessage: { $ne: '' }
     })
     .populate('participants', '_id username profileImage bio')
     .sort({ lastMessageTime: -1 });
 
-    const formattedChats = chats.map(chat => {
+    // Filter in JS because Mongoose Map fields can't be queried reliably in MongoDB
+    const newChats = chats.filter(chat => {
+      const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
+      const isOpenedByMe = chat.isOpenedBy.some(id => id.toString() === userId.toString());
+      return !isOpenedByMe && unreadCount > 0;
+    });
+
+    const formattedChats = newChats.map(chat => {
       const otherUser = chat.participants.find(
         p => p._id.toString() !== userId.toString()
       );
-      const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
-
       return {
         _id: chat._id,
         otherUser,
@@ -192,12 +196,13 @@ export const getNewChats = async (req, res) => {
           text: chat.lastMessage,
           timestamp: chat.lastMessageTime,
         },
-        unreadCount,
+        unreadCount: chat.unreadCount.get(userId.toString()) || 0,
       };
     });
 
     res.json(formattedChats);
   } catch (error) {
+    console.error('Error in getNewChats:', error);
     res.status(500).json({ message: error.message });
   }
 };
