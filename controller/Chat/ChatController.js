@@ -136,7 +136,10 @@ export const sendMessage = async (req, res) => {
 //     const formattedChats = chats
 //       .filter(chat => {
 //         const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
-//         return unreadCount > 0;
+//         const isOpenedByMe = chat.isOpenedBy.some(id => id.toString() === userId.toString());
+        
+//         // ✅ FIX: New chat = has messages AND user hasn't opened it yet
+//         return !isOpenedByMe && unreadCount > 0;
 //       })
 //       .map(chat => {
 //         const otherUser = chat.participants.find(
@@ -156,60 +159,48 @@ export const sendMessage = async (req, res) => {
 //         };
 //       });
     
+//     console.log(`📊 New chats for user ${userId}:`, formattedChats.length);
 //     res.json(formattedChats);
 //   } catch (error) {
+//     console.error('Error in getNewChats:', error);
 //     res.status(500).json({ message: error.message });
 //   }
 // };
 
-
 export const getNewChats = async (req, res) => {
   try {
     const userId = req.user._id;
-    
+
     const chats = await Chat.find({
       participants: userId,
-      lastMessage: { $ne: '' }
+      isOpenedBy: { $nin: [userId] }, // ✅ DB-level filter: only chats I haven't opened
+      unreadCount: { [`${userId}`]: { $gt: 0 } } // ✅ has unread for me
     })
     .populate('participants', '_id username profileImage bio')
-    .populate('lastMessageSender', '_id username')
     .sort({ lastMessageTime: -1 });
-    
-    const formattedChats = chats
-      .filter(chat => {
-        const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
-        const isOpenedByMe = chat.isOpenedBy.some(id => id.toString() === userId.toString());
-        
-        // ✅ FIX: New chat = has messages AND user hasn't opened it yet
-        return !isOpenedByMe && unreadCount > 0;
-      })
-      .map(chat => {
-        const otherUser = chat.participants.find(
-          p => p._id.toString() !== userId.toString()
-        );
-        
-        const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
-        
-        return {
-          _id: chat._id,
-          otherUser,
-          lastMessage: {
-            text: chat.lastMessage,
-            timestamp: chat.lastMessageTime,
-          },
-          unreadCount,
-        };
-      });
-    
-    console.log(`📊 New chats for user ${userId}:`, formattedChats.length);
+
+    const formattedChats = chats.map(chat => {
+      const otherUser = chat.participants.find(
+        p => p._id.toString() !== userId.toString()
+      );
+      const unreadCount = chat.unreadCount.get(userId.toString()) || 0;
+
+      return {
+        _id: chat._id,
+        otherUser,
+        lastMessage: {
+          text: chat.lastMessage,
+          timestamp: chat.lastMessageTime,
+        },
+        unreadCount,
+      };
+    });
+
     res.json(formattedChats);
   } catch (error) {
-    console.error('Error in getNewChats:', error);
     res.status(500).json({ message: error.message });
   }
 };
-
-
 
 export const markChatAsOpened = async (req, res) => {
   try {
