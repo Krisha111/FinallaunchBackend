@@ -66,6 +66,9 @@ mongoose
     process.exit(1);
   });
 
+   // Serve static files from public folder
+   app.use(express.static(path.join(__dirname, 'public')));
+
 // ================================
 // ✅ Upload Limits
 // ================================
