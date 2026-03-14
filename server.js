@@ -895,22 +895,22 @@ socket.on('send_message', ({ room, to, from, message, chatId, toUserId, fromUser
     io.to(room).emit('reel_play_state', { index, isPlaying });
   });
   // Add this new event handler in your socket configuration
-  socket.on('request_room_reel_order', ({ room }, callback) => {
-    console.log(`📋 Room ${room} requesting reel order`);
+  // socket.on('request_room_reel_order', ({ room }, callback) => {
+  //   console.log(`📋 Room ${room} requesting reel order`);
 
-    // Check if this room already has a reel order stored
-    if (!global.roomReelOrders) {
-      global.roomReelOrders = {};
-    }
+  //   // Check if this room already has a reel order stored
+  //   if (!global.roomReelOrders) {
+  //     global.roomReelOrders = {};
+  //   }
 
-    if (global.roomReelOrders[room]) {
-      // Return existing order for this room
-      callback({ reelOrder: global.roomReelOrders[room] });
-    } else {
-      // No order exists yet, admin will create it
-      callback({ reelOrder: null });
-    }
-  });
+  //   if (global.roomReelOrders[room]) {
+  //     // Return existing order for this room
+  //     callback({ reelOrder: global.roomReelOrders[room] });
+  //   } else {
+  //     // No order exists yet, admin will create it
+  //     callback({ reelOrder: null });
+  //   }
+  // });
 
 //-------------here-------------
 
@@ -930,19 +930,32 @@ socket.on('send_message', ({ room, message, sender, from }) => {
   console.log(`✅ Message sent to room ${room}`);
 });
 
-  socket.on('set_room_reel_order', ({ room, reelOrder }) => {
-    console.log(`🔄 Setting reel order for room ${room}`);
+if (!global.roomReelOrders) global.roomReelOrders = {};
 
-    if (!global.roomReelOrders) {
-      global.roomReelOrders = {};
-    }
+socket.on('request_room_reel_order', ({ room }, callback) => {
+  const existing = global.roomReelOrders[room];
+  callback({ reelOrder: existing || null });
+});
 
-    // Store the reel order for this room
-    global.roomReelOrders[room] = reelOrder;
+socket.on('set_room_reel_order', ({ room, reelOrder }) => {
+  if (!global.roomReelOrders) global.roomReelOrders = {};
+  global.roomReelOrders[room] = reelOrder;
+  io.to(room).emit('room_reel_order_set', { reelOrder });
+});
 
-    // Broadcast to all users in the room
-    io.to(room).emit('room_reel_order_set', { reelOrder });
-  });
+  // socket.on('set_room_reel_order', ({ room, reelOrder }) => {
+  //   console.log(`🔄 Setting reel order for room ${room}`);
+
+  //   if (!global.roomReelOrders) {
+  //     global.roomReelOrders = {};
+  //   }
+
+  //   // Store the reel order for this room
+  //   global.roomReelOrders[room] = reelOrder;
+
+  //   // Broadcast to all users in the room
+  //   io.to(room).emit('room_reel_order_set', { reelOrder });
+  // });
   // ================================
   // ✅ ADMIN LEFT ROOM
   // ================================
