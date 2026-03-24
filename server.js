@@ -228,12 +228,34 @@ app.use('/api/posts', postRoutes);
 app.use('/api/profileInformation', profileInformationRoutes);
 app.use('/api/requests', requestRoutes);
 
-// ✅ Auth routes LAST (they use '/' which catches everything)
-app.use('/auth', signUpRouteUser);
-app.use('/', signInRouteUser);
-
-
-
+app.post('/api/bot-reply', async (req, res) => {
+  const { messages } = req.body;
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        max_tokens: 150,
+        messages: [
+          {
+            role: 'system',
+            content: `You are ReelChatt, a fun casual friend watching short videos together with the user. Chat like a real person texting — short, natural, reactive. Never be formal. React to what they say. Ask follow up questions sometimes. Use emojis occasionally but not every message.`,
+          },
+          ...messages,
+        ],
+      }),
+    });
+    const data = await response.json();
+    res.json({ reply: data?.choices?.[0]?.message?.content || "lol what 😂" });
+  } catch (err) {
+    console.error('Bot reply error:', err);
+    res.status(500).json({ reply: "brb one sec 😅" });
+  }
+});
 
 // ================================
 // ✅ Auth Check Route
@@ -960,8 +982,8 @@ socket.on('set_room_reel_order', ({ room, reelOrder }) => {
   // ✅ ADMIN LEFT ROOM
   // ================================
   socket.on('admin_left_room', ({ room }) => {
-    if (global.roomReelOrders) {
-      delete global.roomReelOrders[room];
+    if (global.roomReelOrders)  {
+      delete global.roomReelOrders[room]; 
     }
     const adminName = socket.username;
     io.to(room).emit('admin_left', { adminName: socket.username });
