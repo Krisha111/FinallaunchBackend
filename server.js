@@ -218,6 +218,8 @@ app.use(
 
 // ✅ Move /api/call BEFORE the root '/' route
 // app.use('/api/call', callRoutes);
+app.use('/auth', signUpRouteUser);   // handles /auth/signUp
+app.use('/auth', signInRouteUser);   // handles /auth/signIn
 app.use('/api/chat', chatRoutes);
 app.use('/api/chats', chatRoutes);
 app.use('/api/profile', profileStatsRoutes);
