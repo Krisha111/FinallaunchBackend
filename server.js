@@ -232,10 +232,33 @@ app.use('/api/requests', requestRoutes);
 
 app.post('/api/bot-reply', async (req, res) => {
   const { messages } = req.body;
-  
+
   if (!messages || !Array.isArray(messages)) {
     return res.status(400).json({ reply: "Hey! Send me a message 😊" });
   }
+
+  // ✅ Validate alternating roles before sending
+  const validMessages = [];
+  for (const msg of messages) {
+    if (validMessages.length === 0) {
+      validMessages.push(msg);
+    } else {
+      const last = validMessages[validMessages.length - 1];
+      if (last.role !== msg.role) {
+        validMessages.push(msg);
+      }
+      // skip consecutive same-role messages
+    }
+  }
+
+  // ✅ Must start with user
+  if (validMessages[0]?.role !== 'user') {
+    validMessages.unshift({ role: 'user', content: '.' });
+  }
+
+  console.log('📤 Sending to Anthropic:', JSON.stringify(validMessages, null, 2));
+  console.log('🔑 API Key exists:', !!process.env.ANTHROPIC_API_KEY);
+  console.log('🔑 API Key prefix:', process.env.ANTHROPIC_API_KEY?.substring(0, 20));
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -248,31 +271,29 @@ app.post('/api/bot-reply', async (req, res) => {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 200,
-        system: `You are ReelChatt, a fun casual friend watching short videos with the user. 
-Chat naturally like a real person texting. Be reactive and conversational. 
-Never repeat yourself. Never say "lol what". Respond to what the user actually said.
-Keep replies short, 1-2 sentences max. Use emojis occasionally.`,
-        messages: messages,
+        system: `You are ReelChatt, a fun casual friend watching short videos with the user. Chat naturally like a real person texting. Be reactive and conversational. Never repeat yourself. Respond to what the user actually said. Keep replies short, 1-2 sentences max. Use emojis occasionally.`,
+        messages: validMessages,
       }),
     });
 
+    const rawText = await response.text();
+    console.log('📥 Anthropic raw response status:', response.status);
+    console.log('📥 Anthropic raw response body:', rawText);
+
     if (!response.ok) {
-      const err = await response.text();
-      console.error('Anthropic API error:', response.status, err);
       return res.status(500).json({ reply: "one sec my wifi is being weird 😅" });
     }
 
-    const data = await response.json();
+    const data = JSON.parse(rawText);
     const reply = data?.content?.[0]?.text;
 
     if (!reply) {
-      console.error('No reply in response:', JSON.stringify(data));
       return res.status(500).json({ reply: "hmm say that again?" });
     }
 
     res.json({ reply });
   } catch (err) {
-    console.error('Bot reply fetch error:', err);
+    console.error('❌ Bot reply fetch error:', err);
     res.status(500).json({ reply: "brb one sec 😅" });
   }
 });
