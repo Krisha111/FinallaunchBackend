@@ -259,7 +259,7 @@ app.post('/api/bot-reply', async (req, res) => {
         'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'llama3-7b',
+        model: 'llama-3.1-8b-instant',
         max_tokens: 200,
         temperature: 0.9,
         messages: [
