@@ -66,8 +66,8 @@ mongoose
     process.exit(1);
   });
 
-   // Serve static files from public folder
-   app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files from public folder
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ================================
 // ✅ Upload Limits
@@ -237,63 +237,55 @@ app.post('/api/bot-reply', async (req, res) => {
     return res.status(400).json({ reply: "Hey! Send me a message 😊" });
   }
 
-  // ✅ Validate alternating roles before sending
-  const validMessages = [];
-  for (const msg of messages) {
-    if (validMessages.length === 0) {
-      validMessages.push(msg);
-    } else {
-      const last = validMessages[validMessages.length - 1];
-      if (last.role !== msg.role) {
-        validMessages.push(msg);
-      }
-      // skip consecutive same-role messages
-    }
-  }
-
-  // ✅ Must start with user
-  if (validMessages[0]?.role !== 'user') {
-    validMessages.unshift({ role: 'user', content: '.' });
-  }
-
-  console.log('📤 Sending to Anthropic:', JSON.stringify(validMessages, null, 2));
-  console.log('🔑 API Key exists:', !!process.env.ANTHROPIC_API_KEY);
-  console.log('🔑 API Key prefix:', process.env.ANTHROPIC_API_KEY?.substring(0, 20));
-
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
-        system: `You are ReelChatt, a fun casual friend watching short videos with the user. Chat naturally like a real person texting. Be reactive and conversational. Never repeat yourself. Respond to what the user actually said. Keep replies short, 1-2 sentences max. Use emojis occasionally.`,
-        messages: validMessages,
-      }),
-    });
+    // Convert to Gemini format
+    const contents = messages
+      .filter(m => m.content && m.content.trim())
+      .map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
 
-    const rawText = await response.text();
-    console.log('📥 Anthropic raw response status:', response.status);
-    console.log('📥 Anthropic raw response body:', rawText);
+    // Ensure starts with user
+    if (contents.length === 0 || contents[0].role !== 'user') {
+      contents.unshift({ role: 'user', parts: [{ text: '.' }] });
+    }
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: `You are ReelChatt, a fun casual friend watching short videos with the user. Chat naturally like a real person texting. Be reactive and conversational. Never repeat yourself. Respond to what the user actually said. Keep replies short, 1-2 sentences max. Use emojis occasionally.` }]
+          },
+          contents,
+          generationConfig: {
+            maxOutputTokens: 200,
+            temperature: 0.9,
+          }
+        }),
+      }
+    );
+
+    const data = await response.json();
 
     if (!response.ok) {
+      console.error('Gemini error:', JSON.stringify(data));
       return res.status(500).json({ reply: "one sec my wifi is being weird 😅" });
     }
 
-    const data = JSON.parse(rawText);
-    const reply = data?.content?.[0]?.text;
+    const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!reply) {
+      console.error('No reply from Gemini:', JSON.stringify(data));
       return res.status(500).json({ reply: "hmm say that again?" });
     }
 
-    res.json({ reply });
+    res.json({ reply: reply.trim() });
   } catch (err) {
-    console.error('❌ Bot reply fetch error:', err);
+    console.error('Gemini fetch error:', err);
     res.status(500).json({ reply: "brb one sec 😅" });
   }
 });
@@ -350,19 +342,19 @@ function createRoomName(user1, user2) {
 
 io.on('connection', (socket) => {
   console.log('🟢 New client connected:', socket.id);
- socket.on('register_user', (userId) => {
+  socket.on('register_user', (userId) => {
     socket.userId = userId;
     console.log(`User ${userId} registered with socket ${socket.id}`);
   });
 
   // ✅ ADD THIS - inside io.on('connection', (socket) => { ... })
-socket.on('get_active_users', () => {
-  const activeUsersList = Object.values(userssample);
-  socket.emit('active_users', activeUsersList);
+  socket.on('get_active_users', () => {
+    const activeUsersList = Object.values(userssample);
+    socket.emit('active_users', activeUsersList);
 
-  console.log(`📤 Sent ${activeUsersList.length}
+    console.log(`📤 Sent ${activeUsersList.length}
      active users to ${socket.username || 'unknown'}`);
-});
+  });
 
   socket.on('cancel_invite', ({ to, from }) => {
     console.log(`❌ ${from} cancelled invite to ${to}`);
@@ -396,34 +388,34 @@ socket.on('get_active_users', () => {
 
 
   // ================================
-// ✅ CHAT MESSAGE HANDLERS (Add after line ~200)
-// ================================
-socket.on('join_chat_room', ({ chatId, userId }) => {
-  socket.join(`chat_${chatId}`);
-  console.log(`💬 User ${userId} joined chat room: chat_${chatId}`);
-});
+  // ✅ CHAT MESSAGE HANDLERS (Add after line ~200)
+  // ================================
+  socket.on('join_chat_room', ({ chatId, userId }) => {
+    socket.join(`chat_${chatId}`);
+    console.log(`💬 User ${userId} joined chat room: chat_${chatId}`);
+  });
 
-socket.on('leave_chat_room', ({ chatId }) => {
-  socket.leave(`chat_${chatId}`);
-  console.log(`📤 User left chat room: chat_${chatId}`);
-});
+  socket.on('leave_chat_room', ({ chatId }) => {
+    socket.leave(`chat_${chatId}`);
+    console.log(`📤 User left chat room: chat_${chatId}`);
+  });
 
-socket.on('new_chat_message', ({ chatId, senderId, recipientId }) => {
-  console.log(`💬 New message in chat ${chatId}`);
-  
-  // Notify recipient to refresh their chat list
-  io.to(recipientId.toString()).emit('chat_list_update', { chatId });
-  
-  // Also emit to chat room if both users are in it
-  io.to(`chat_${chatId}`).emit('message_received', { chatId });
-});
+  socket.on('new_chat_message', ({ chatId, senderId, recipientId }) => {
+    console.log(`💬 New message in chat ${chatId}`);
 
-socket.on('mark_chat_opened', ({ chatId, userId }) => {
-  console.log(`👁️ User ${userId} opened chat ${chatId}`);
-  
-  // Notify all users in this chat that it was opened
-  io.to(`chat_${chatId}`).emit('chat_opened', { chatId, userId });
-});
+    // Notify recipient to refresh their chat list
+    io.to(recipientId.toString()).emit('chat_list_update', { chatId });
+
+    // Also emit to chat room if both users are in it
+    io.to(`chat_${chatId}`).emit('message_received', { chatId });
+  });
+
+  socket.on('mark_chat_opened', ({ chatId, userId }) => {
+    console.log(`👁️ User ${userId} opened chat ${chatId}`);
+
+    // Notify all users in this chat that it was opened
+    io.to(`chat_${chatId}`).emit('chat_opened', { chatId, userId });
+  });
 
 
   // ================================
@@ -467,9 +459,9 @@ socket.on('mark_chat_opened', ({ chatId, userId }) => {
   //     console.warn('⚠️ Registration failed: missing username or userId');
   //     return;
   //   }
-    
+
   //   console.log(`✅ Registering: ${username} (${userId})`);
-    
+
   //   socket.username = username;
   //   socket.userId = userId;
   //   socket.join(userId.toString());
@@ -497,58 +489,58 @@ socket.on('mark_chat_opened', ({ chatId, userId }) => {
 
   //   const activeUsersList = Object.values(userssample);
   //   console.log(`👥 Broadcasting ${activeUsersList.length} active users`);
-    
+
   //   // Emit to ALL connected clients
   //   io.emit('active_users', activeUsersList);
   // });
 
 
   // ✅ REMOVE the duplicate socket.on('register') around line 350
-// Keep only ONE register handler:
+  // Keep only ONE register handler:
 
-socket.on('register', async ({ username, userId }) => {
-  if (!username || !userId) {
-    console.warn('⚠️ Registration failed: missing username or userId');
-    return;
-  }
-  
-  console.log(`✅ Registering: ${username} (${userId})`);
-  
-  socket.username = username;
-  socket.userId = userId;
-  socket.join(userId.toString());
+  socket.on('register', async ({ username, userId }) => {
+    if (!username || !userId) {
+      console.warn('⚠️ Registration failed: missing username or userId');
+      return;
+    }
 
-  let profileImage = '';
-  let bio = '';
+    console.log(`✅ Registering: ${username} (${userId})`);
 
-  userSockets.set(userId.toString(), socket.id);
+    socket.username = username;
+    socket.userId = userId;
+    socket.join(userId.toString());
 
-  try {
-    const user = await User.findOne({ username });
-    if (user?.profileImage) profileImage = user.profileImage;
-    if (user?.bio) bio = user.bio;
-  } catch (err) {
-    console.error('Error fetching user profile:', err.message);
-  }
+    let profileImage = '';
+    let bio = '';
 
-  userssample[username] = {
-    socketId: socket.id,
-    username,
-    userId,
-    profileImage,
-    bio,
-  };
+    userSockets.set(userId.toString(), socket.id);
 
-  const activeUsersList = Object.values(userssample);
-  console.log(`👥 Broadcasting ${activeUsersList.length} active users`);
-  
-  // ✅ Broadcast to ALL clients immediately
-  io.emit('active_users', activeUsersList);
-  
-  // ✅ Also send directly to the newly connected user
-  socket.emit('active_users', activeUsersList);
-});
-  
+    try {
+      const user = await User.findOne({ username });
+      if (user?.profileImage) profileImage = user.profileImage;
+      if (user?.bio) bio = user.bio;
+    } catch (err) {
+      console.error('Error fetching user profile:', err.message);
+    }
+
+    userssample[username] = {
+      socketId: socket.id,
+      username,
+      userId,
+      profileImage,
+      bio,
+    };
+
+    const activeUsersList = Object.values(userssample);
+    console.log(`👥 Broadcasting ${activeUsersList.length} active users`);
+
+    // ✅ Broadcast to ALL clients immediately
+    io.emit('active_users', activeUsersList);
+
+    // ✅ Also send directly to the newly connected user
+    socket.emit('active_users', activeUsersList);
+  });
+
   // socket.on('register', async ({ username, userId }) => {
   //   if (!username) return;
   //   console.log(`✅ Registered: ${username} (${userId})`);
@@ -736,7 +728,7 @@ socket.on('register', async ({ username, userId }) => {
   });
 
 
-  
+
   socket.on('send-notification', (data) => {
     const { receiverId } = data;
 
@@ -866,54 +858,54 @@ socket.on('register', async ({ username, userId }) => {
     }
   });
 
-//-------------here-------------
-socket.on('send_message', ({ room, to, from, message, chatId, toUserId, fromUserId }) => {
-  console.log(`💬 Socket Message from ${from} to ${to}`);
-  console.log(`📋 Message: "${message?.substring(0, 50)}"`);
-  console.log(`📋 UserIds: ${fromUserId} → ${toUserId}`);
-  
-  // ✅ Emit to recipient
-  const recipientSocketId = userSockets.get(toUserId?.toString());
-  if (recipientSocketId) {
-    io.to(recipientSocketId).emit('receive_message', {
-      from,
-      to,
-      message,
-      chatId,
-      timestamp: new Date().toISOString(),
-    });
-    console.log(`✅ Message sent to recipient socket: ${recipientSocketId}`);
-  } else {
-    console.log(`⚠️ Recipient ${to} (${toUserId}) not connected`);
-  }
-  
-  // ✅ ALSO emit to sender (for multi-device sync)
-  const senderSocketId = userSockets.get(fromUserId?.toString());
-  if (senderSocketId && senderSocketId !== socket.id) {
-    io.to(senderSocketId).emit('receive_message', {
-      from,
-      to,
-      message,
-      chatId,
-      timestamp: new Date().toISOString(),
-    });
-    console.log(`✅ Message echoed to sender's other devices`);
-  }
-  
-  // ✅ Emit chat list updates using userId rooms
-  if (fromUserId) {
-    io.to(fromUserId.toString()).emit('chat_list_update', { chatId });
-  }
-  if (toUserId) {
-    io.to(toUserId.toString()).emit('chat_list_update', { chatId });
-    // ✅ Also emit specific event for new messages
-    io.to(toUserId.toString()).emit('new_chat_message', { 
-      chatId, 
-      from, 
-      message: message?.substring(0, 100) 
-    });
-  }
-});
+  //-------------here-------------
+  socket.on('send_message', ({ room, to, from, message, chatId, toUserId, fromUserId }) => {
+    console.log(`💬 Socket Message from ${from} to ${to}`);
+    console.log(`📋 Message: "${message?.substring(0, 50)}"`);
+    console.log(`📋 UserIds: ${fromUserId} → ${toUserId}`);
+
+    // ✅ Emit to recipient
+    const recipientSocketId = userSockets.get(toUserId?.toString());
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit('receive_message', {
+        from,
+        to,
+        message,
+        chatId,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`✅ Message sent to recipient socket: ${recipientSocketId}`);
+    } else {
+      console.log(`⚠️ Recipient ${to} (${toUserId}) not connected`);
+    }
+
+    // ✅ ALSO emit to sender (for multi-device sync)
+    const senderSocketId = userSockets.get(fromUserId?.toString());
+    if (senderSocketId && senderSocketId !== socket.id) {
+      io.to(senderSocketId).emit('receive_message', {
+        from,
+        to,
+        message,
+        chatId,
+        timestamp: new Date().toISOString(),
+      });
+      console.log(`✅ Message echoed to sender's other devices`);
+    }
+
+    // ✅ Emit chat list updates using userId rooms
+    if (fromUserId) {
+      io.to(fromUserId.toString()).emit('chat_list_update', { chatId });
+    }
+    if (toUserId) {
+      io.to(toUserId.toString()).emit('chat_list_update', { chatId });
+      // ✅ Also emit specific event for new messages
+      io.to(toUserId.toString()).emit('new_chat_message', {
+        chatId,
+        from,
+        message: message?.substring(0, 100)
+      });
+    }
+  });
 
   // ================================
   // ✅ SYNC REEL INDEX
@@ -975,36 +967,36 @@ socket.on('send_message', ({ room, to, from, message, chatId, toUserId, fromUser
   //   }
   // });
 
-//-------------here-------------
+  //-------------here-------------
 
-socket.on('send_message', ({ room, message, sender, from }) => {
-  console.log(`💬 Message in room ${room} from ${sender || from}`);
-  console.log(`   Message content: "${message?.substring(0, 50)}"`);
-  
-  // ✅ Broadcast to everyone in the room
-  io.to(room).emit('receive_message', {
-    sender: sender || from,
-    from: sender || from,
-    message: message,
-    room: room,
-    timestamp: new Date().toISOString(),
+  socket.on('send_message', ({ room, message, sender, from }) => {
+    console.log(`💬 Message in room ${room} from ${sender || from}`);
+    console.log(`   Message content: "${message?.substring(0, 50)}"`);
+
+    // ✅ Broadcast to everyone in the room
+    io.to(room).emit('receive_message', {
+      sender: sender || from,
+      from: sender || from,
+      message: message,
+      room: room,
+      timestamp: new Date().toISOString(),
+    });
+
+    console.log(`✅ Message sent to room ${room}`);
   });
-  
-  console.log(`✅ Message sent to room ${room}`);
-});
 
-if (!global.roomReelOrders) global.roomReelOrders = {};
-
-socket.on('request_room_reel_order', ({ room }, callback) => {
-  const existing = global.roomReelOrders[room];
-  callback({ reelOrder: existing || null });
-});
-
-socket.on('set_room_reel_order', ({ room, reelOrder }) => {
   if (!global.roomReelOrders) global.roomReelOrders = {};
-  global.roomReelOrders[room] = reelOrder;
-  io.to(room).emit('room_reel_order_set', { reelOrder });
-});
+
+  socket.on('request_room_reel_order', ({ room }, callback) => {
+    const existing = global.roomReelOrders[room];
+    callback({ reelOrder: existing || null });
+  });
+
+  socket.on('set_room_reel_order', ({ room, reelOrder }) => {
+    if (!global.roomReelOrders) global.roomReelOrders = {};
+    global.roomReelOrders[room] = reelOrder;
+    io.to(room).emit('room_reel_order_set', { reelOrder });
+  });
 
   // socket.on('set_room_reel_order', ({ room, reelOrder }) => {
   //   console.log(`🔄 Setting reel order for room ${room}`);
@@ -1023,8 +1015,8 @@ socket.on('set_room_reel_order', ({ room, reelOrder }) => {
   // ✅ ADMIN LEFT ROOM
   // ================================
   socket.on('admin_left_room', ({ room }) => {
-    if (global.roomReelOrders)  {
-      delete global.roomReelOrders[room]; 
+    if (global.roomReelOrders) {
+      delete global.roomReelOrders[room];
     }
     const adminName = socket.username;
     io.to(room).emit('admin_left', { adminName: socket.username });
@@ -1048,7 +1040,7 @@ socket.on('set_room_reel_order', ({ room, reelOrder }) => {
     return (clean.substring(0, 64) || 'fallback').toLowerCase();
   }
 
-  
+
 
 
   // ✅ Update disconnect handler - add this inside your existing disconnect handler
