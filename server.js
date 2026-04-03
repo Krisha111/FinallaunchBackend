@@ -232,6 +232,11 @@ app.use('/api/requests', requestRoutes);
 
 app.post('/api/bot-reply', async (req, res) => {
   const { messages } = req.body;
+  
+  if (!messages || !Array.isArray(messages)) {
+    return res.status(400).json({ reply: "Hey! Send me a message 😊" });
+  }
+
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -242,17 +247,32 @@ app.post('/api/bot-reply', async (req, res) => {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 150,
-        system: `You are ReelChatt, a fun casual friend watching short videos together with the user. Chat like a real person texting — short, natural, reactive. Never be formal. React to what they say. Ask follow-up questions sometimes. Use emojis occasionally but not every message. Keep replies under 2 sentences usually.`,
+        max_tokens: 200,
+        system: `You are ReelChatt, a fun casual friend watching short videos with the user. 
+Chat naturally like a real person texting. Be reactive and conversational. 
+Never repeat yourself. Never say "lol what". Respond to what the user actually said.
+Keep replies short, 1-2 sentences max. Use emojis occasionally.`,
         messages: messages,
       }),
     });
 
+    if (!response.ok) {
+      const err = await response.text();
+      console.error('Anthropic API error:', response.status, err);
+      return res.status(500).json({ reply: "one sec my wifi is being weird 😅" });
+    }
+
     const data = await response.json();
-    const reply = data?.content?.[0]?.text || "lol what 😂";
+    const reply = data?.content?.[0]?.text;
+
+    if (!reply) {
+      console.error('No reply in response:', JSON.stringify(data));
+      return res.status(500).json({ reply: "hmm say that again?" });
+    }
+
     res.json({ reply });
   } catch (err) {
-    console.error('Bot reply error:', err);
+    console.error('Bot reply fetch error:', err);
     res.status(500).json({ reply: "brb one sec 😅" });
   }
 });
