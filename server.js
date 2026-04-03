@@ -233,26 +233,24 @@ app.use('/api/requests', requestRoutes);
 app.post('/api/bot-reply', async (req, res) => {
   const { messages } = req.body;
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 150,
-        messages: [
-          {
-            role: 'system',
-            content: `You are ReelChatt, a fun casual friend watching short videos together with the user. Chat like a real person texting — short, natural, reactive. Never be formal. React to what they say. Ask follow up questions sometimes. Use emojis occasionally but not every message.`,
-          },
-          ...messages,
-        ],
+        system: `You are ReelChatt, a fun casual friend watching short videos together with the user. Chat like a real person texting — short, natural, reactive. Never be formal. React to what they say. Ask follow-up questions sometimes. Use emojis occasionally but not every message. Keep replies under 2 sentences usually.`,
+        messages: messages,
       }),
     });
+
     const data = await response.json();
-    res.json({ reply: data?.choices?.[0]?.message?.content || "lol what 😂" });
+    const reply = data?.content?.[0]?.text || "lol what 😂";
+    res.json({ reply });
   } catch (err) {
     console.error('Bot reply error:', err);
     res.status(500).json({ reply: "brb one sec 😅" });
