@@ -238,54 +238,57 @@ app.post('/api/bot-reply', async (req, res) => {
   }
 
   try {
-    // Convert to Gemini format
-    const contents = messages
-      .filter(m => m.content && m.content.trim())
-      .map(m => ({
-        role: m.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: m.content }]
-      }));
-
-    // Ensure starts with user
-    if (contents.length === 0 || contents[0].role !== 'user') {
-      contents.unshift({ role: 'user', parts: [{ text: '.' }] });
+    const validMessages = [];
+    for (const msg of messages) {
+      if (validMessages.length === 0) {
+        validMessages.push(msg);
+      } else {
+        const last = validMessages[validMessages.length - 1];
+        if (last.role !== msg.role) validMessages.push(msg);
+      }
     }
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: `You are ReelChatt, a fun casual friend watching short videos with the user. Chat naturally like a real person texting. Be reactive and conversational. Never repeat yourself. Respond to what the user actually said. Keep replies short, 1-2 sentences max. Use emojis occasionally.` }]
+    if (validMessages[0]?.role !== 'user') {
+      validMessages.unshift({ role: 'user', content: '.' });
+    }
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'llama3-8b-8192',
+        max_tokens: 200,
+        temperature: 0.9,
+        messages: [
+          {
+            role: 'system',
+            content: `You are ReelChatt, a fun casual friend watching short videos with the user. Chat naturally like a real person texting. Be reactive and conversational. Never repeat yourself. Respond to what the user actually said. Keep replies short, 1-2 sentences max. Use emojis occasionally.`
           },
-          contents,
-          generationConfig: {
-            maxOutputTokens: 200,
-            temperature: 0.9,
-          }
-        }),
-      }
-    );
+          ...validMessages
+        ],
+      }),
+    });
 
     const data = await response.json();
 
     if (!response.ok) {
-      console.error('Gemini error:', JSON.stringify(data));
+      console.error('Groq error:', JSON.stringify(data));
       return res.status(500).json({ reply: "one sec my wifi is being weird 😅" });
     }
 
-    const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const reply = data?.choices?.[0]?.message?.content;
 
     if (!reply) {
-      console.error('No reply from Gemini:', JSON.stringify(data));
+      console.error('No reply from Groq:', JSON.stringify(data));
       return res.status(500).json({ reply: "hmm say that again?" });
     }
 
     res.json({ reply: reply.trim() });
   } catch (err) {
-    console.error('Gemini fetch error:', err);
+    console.error('Groq fetch error:', err);
     res.status(500).json({ reply: "brb one sec 😅" });
   }
 });
